@@ -3,9 +3,9 @@ import { format, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   Users, Calendar as CalendarIcon, TrendingUp, 
-  ChevronLeft, ChevronRight, ArrowRight, UserPlus 
+  ChevronLeft, ChevronRight, ArrowRight, UserPlus, Smartphone
 } from 'lucide-react';
-import { Card, cn } from './UI';
+import { Card, Button, cn } from './UI';
 import { Employee, AttendanceRecord } from '../types';
 
 interface DashboardProps {
@@ -15,10 +15,13 @@ interface DashboardProps {
   setCurrentMonth: (date: Date) => void;
   getSummary: (id: string, monthYear: string) => any;
   setActiveView: (view: 'dashboard' | 'team' | 'calendar') => void;
+  onInstallPWA?: () => void;
+  isInstallable?: boolean;
 }
 
 export const Dashboard = ({ 
-  employees, attendance, currentMonth, setCurrentMonth, getSummary, setActiveView 
+  employees, attendance, currentMonth, setCurrentMonth, getSummary, setActiveView,
+  onInstallPWA, isInstallable
 }: DashboardProps) => {
   const monthStr = format(currentMonth, 'yyyy-MM');
   
@@ -45,6 +48,29 @@ export const Dashboard = ({
           <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all"><ChevronRight size={20} /></button>
         </div>
       </div>
+      
+      {isInstallable && (
+        <Card className="p-6 bg-indigo-600 text-white border-none shadow-xl shadow-indigo-500/20 overflow-hidden relative group">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center">
+                <Smartphone size={28} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black tracking-tighter italic">Instale o App no seu Celular</h3>
+                <p className="text-indigo-100 text-sm font-medium">Acesse o PontoFácil direto da sua tela de início, sem precisar do navegador.</p>
+              </div>
+            </div>
+            <Button 
+              onClick={onInstallPWA}
+              className="bg-white text-indigo-600 hover:bg-indigo-50 border-none rounded-2xl h-12 px-8 font-black italic shadow-lg"
+            >
+              Instalar Agora
+            </Button>
+          </div>
+          <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700" />
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-6 bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-none shadow-xl">

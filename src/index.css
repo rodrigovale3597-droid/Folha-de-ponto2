@@ -8,6 +8,12 @@
   }
   body {
     @apply bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  
+  input, textarea {
+    user-select: text;
   }
 }
 

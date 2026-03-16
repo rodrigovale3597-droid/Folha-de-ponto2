@@ -45,6 +45,10 @@ function AppContent() {
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false);
   const [isEditEmployeeOpen, setIsEditEmployeeOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isStoragePermissionOpen, setIsStoragePermissionOpen] = useState(false);
+  const [hasStoragePermission, setHasStoragePermission] = useState(() => {
+    return localStorage.getItem('pontofacil_storage_permission') === 'true';
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -63,7 +67,27 @@ function AppContent() {
   const [isSettingPin, setIsSettingPin] = useState(false);
   const [activeView, setActiveView] = useState<'dashboard' | 'team' | 'calendar'>('dashboard');
   const [toast, setToast] = useState<{ id: number; message: string; type: 'success' | 'error' } | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const installPWA = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      showToast('App instalado com sucesso!');
+    }
+  };
+
   useEffect(() => {
     (window as any).openSettings = () => setIsSettingsOpen(true);
   }, []);
@@ -366,53 +390,119 @@ function AppContent() {
   const generatePDF = async () => {
     const emp = employees.find(e => e.id === selectedEmployeeId);
     if (!emp) return;
+
+    if (!hasStoragePermission) {
+      setIsStoragePermissionOpen(true);
+      return;
+    }
+
     const monthStr = format(currentMonth, 'yyyy-MM');
     const summary = getSummary(emp.id, monthStr);
     const rate = emp.dailyRate || 0;
     const total = (summary.diarias * rate) + (summary.meias * (rate / 2));
+    
     const docPdf = new jsPDF();
     
-    docPdf.setFontSize(22);
-    docPdf.text('Relatório de Ponto', 105, 20, { align: 'center' });
+    // PDF Metadata
+    docPdf.setProperties({
+      title: `Relatório de Ponto - ${emp.name}`,
+      subject: 'Relatório Mensal de Frequência',
+      author: 'Ponto Fácil',
+      keywords: 'ponto, frequência, relatório',
+      creator: 'Ponto Fácil App'
+    });
+
+    // Header Design
+    docPdf.setFillColor(15, 23, 42); // Slate-900
+    docPdf.rect(0, 0, 210, 40, 'F');
     
+    docPdf.setTextColor(255, 255, 255);
+    docPdf.setFontSize(24);
+    docPdf.setFont('helvetica', 'bold');
+    docPdf.text('PONTO FÁCIL', 105, 20, { align: 'center' });
+    
+    docPdf.setFontSize(10);
+    docPdf.setFont('helvetica', 'normal');
+    docPdf.text('RELATÓRIO MENSAL DE FREQUÊNCIA E PAGAMENTO', 105, 30, { align: 'center' });
+
+    // Employee Info Box
+    docPdf.setTextColor(15, 23, 42);
     docPdf.setFontSize(12);
-    docPdf.text(`Funcionário: ${emp.name}`, 20, 40);
-    docPdf.text(`Cargo: ${emp.role || 'Colaborador'}`, 20, 48);
-    if (emp.project) {
-      docPdf.text(`Obra: ${emp.project}`, 20, 56);
-      docPdf.text(`Mês: ${format(currentMonth, 'MMMM yyyy', { locale: ptBR })}`, 20, 64);
-      docPdf.text(`Total a Pagar: R$ ${total.toFixed(2)}`, 20, 72);
-    } else {
-      docPdf.text(`Mês: ${format(currentMonth, 'MMMM yyyy', { locale: ptBR })}`, 20, 56);
-      docPdf.text(`Total a Pagar: R$ ${total.toFixed(2)}`, 20, 64);
-    }
+    docPdf.setFont('helvetica', 'bold');
+    docPdf.text('DADOS DO COLABORADOR', 20, 55);
     
+    docPdf.setDrawColor(226, 232, 240); // Slate-200
+    docPdf.line(20, 57, 190, 57);
+
+    docPdf.setFont('helvetica', 'normal');
+    docPdf.setFontSize(10);
+    docPdf.text(`Nome: ${emp.name}`, 20, 65);
+    docPdf.text(`Cargo: ${emp.role || 'Não informado'}`, 20, 72);
+    docPdf.text(`Obra/Projeto: ${emp.project || 'Não informado'}`, 20, 79);
+    
+    docPdf.text(`Mês de Referência: ${format(currentMonth, 'MMMM yyyy', { locale: ptBR }).toUpperCase()}`, 120, 65);
+    docPdf.text(`Valor da Diária: R$ ${rate.toFixed(2)}`, 120, 72);
+    docPdf.setFont('helvetica', 'bold');
+    docPdf.text(`TOTAL A PAGAR: R$ ${total.toFixed(2)}`, 120, 79);
+
+    // Summary Table
     autoTable(docPdf, {
-      startY: emp.project ? 85 : 75,
-      head: [['Data', 'Tipo', 'Valor (R$)']],
+      startY: 90,
+      head: [['Data', 'Dia', 'Tipo de Registro', 'Localização', 'Valor']],
       body: daysInMonth.map(d => {
         const record = attendance.find(a => a.employeeId === emp.id && a.date === format(d, 'yyyy-MM-dd'));
         if (!record) return null;
-        let val = 0;
-        if (record.type === 'D') val = rate;
-        if (record.type === 'M') val = rate / 2;
         
-        let typeLabel = record.type === 'D' ? 'Dia Inteiro' : record.type === 'M' ? 'Meio Período' : 'Falta';
-        if (record.location) {
-          typeLabel += ` (${record.location})`;
+        let val = 0;
+        let typeLabel = '';
+        if (record.type === 'D') {
+          val = rate;
+          typeLabel = 'DIÁRIA INTEIRA';
+        } else if (record.type === 'M') {
+          val = rate / 2;
+          typeLabel = 'MEIA DIÁRIA';
+        } else {
+          typeLabel = 'FALTA';
         }
 
         return [
-          format(d, 'dd/MM/yyyy'), 
+          format(d, 'dd/MM/yyyy'),
+          format(d, 'EEE', { locale: ptBR }).toUpperCase(),
           typeLabel,
-          val.toFixed(2)
+          record.location || '-',
+          `R$ ${val.toFixed(2)}`
         ];
-      }).filter(r => r !== null) as any[][]
+      }).filter(r => r !== null) as any[][],
+      headStyles: {
+        fillColor: [15, 23, 42],
+        textColor: [255, 255, 255],
+        fontSize: 9,
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      bodyStyles: {
+        fontSize: 8,
+        halign: 'center'
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252]
+      },
+      margin: { top: 90 }
     });
 
-    const fileName = `Ponto_${emp.name}_${monthStr}.pdf`;
+    // Signature Area
+    const finalY = (docPdf as any).lastAutoTable.finalY + 30;
+    if (finalY < 250) {
+      docPdf.line(20, finalY, 90, finalY);
+      docPdf.text('Assinatura do Colaborador', 55, finalY + 5, { align: 'center' });
+      
+      docPdf.line(120, finalY, 190, finalY);
+      docPdf.text('Assinatura do Responsável', 155, finalY + 5, { align: 'center' });
+    }
 
-    // Mobile-first approach: Try Web Share API if available (best for "converted apps" and mobile)
+    const fileName = `PontoFacil_${emp.name.replace(/\s+/g, '_')}_${monthStr}.pdf`;
+
+    // Mobile-first approach: Try Web Share API
     if (navigator.share && navigator.canShare) {
       const pdfBlob = docPdf.output('blob');
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
@@ -424,22 +514,20 @@ function AppContent() {
             title: 'Relatório de Ponto',
             text: `Relatório de Ponto - ${emp.name} - ${monthStr}`,
           });
-          showToast('Relatório compartilhado com sucesso!');
+          showToast('Relatório compartilhado!');
           return;
         } catch (error) {
-          // If user cancelled or share failed, fallback to direct save
           if ((error as any).name !== 'AbortError') {
             console.error('Erro ao compartilhar:', error);
           } else {
-            return; // User cancelled, don't trigger download
+            return;
           }
         }
       }
     }
 
-    // Fallback/Desktop: Use jsPDF's built-in save method
     docPdf.save(fileName);
-    showToast('Relatório PDF gerado com sucesso!');
+    showToast('Relatório salvo em Downloads');
   };
 
   if (loading) return (
@@ -538,7 +626,18 @@ function AppContent() {
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-8">
           <div className="max-w-6xl mx-auto">
-            {activeView === 'dashboard' && <Dashboard employees={employees} attendance={attendance} currentMonth={currentMonth} setCurrentMonth={setCurrentMonth} getSummary={getSummary} setActiveView={setActiveView} />}
+            {activeView === 'dashboard' && (
+              <Dashboard 
+                employees={employees} 
+                attendance={attendance} 
+                currentMonth={currentMonth} 
+                setCurrentMonth={setCurrentMonth} 
+                getSummary={getSummary} 
+                setActiveView={setActiveView} 
+                onInstallPWA={installPWA}
+                isInstallable={!!deferredPrompt}
+              />
+            )}
             {activeView === 'team' && <Team employees={employees} setIsAddEmployeeOpen={setIsAddEmployeeOpen} setSelectedEmployeeId={setSelectedEmployeeId} openEditModal={openEditModal} deleteEmployee={deleteEmployee} setActiveView={setActiveView} />}
             {activeView === 'calendar' && (
               <CalendarView 
@@ -574,6 +673,43 @@ function AppContent() {
         setActiveView={setActiveView} 
         onOpenAddEmployee={() => setIsAddEmployeeOpen(true)} 
       />
+
+      {isStoragePermissionOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <Card className="w-full max-w-sm p-8 rounded-[2.5rem] border-none shadow-2xl bg-white dark:bg-slate-900 text-center space-y-6">
+            <div className="w-20 h-20 bg-indigo-100 dark:bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto">
+              <Download size={40} className="text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black tracking-tight italic text-slate-900 dark:text-white">Permissão de Acesso</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                Para salvar o relatório no seu celular, o app precisa de permissão para baixar arquivos. 
+                O arquivo será salvo na sua pasta de <span className="font-bold text-indigo-600 dark:text-indigo-400">Downloads</span> com o nome <span className="font-bold">Ponto Fácil</span>.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 pt-4">
+              <Button 
+                onClick={() => {
+                  setHasStoragePermission(true);
+                  localStorage.setItem('pontofacil_storage_permission', 'true');
+                  setIsStoragePermissionOpen(false);
+                  generatePDF();
+                }}
+                className="h-14 rounded-2xl font-black italic text-lg shadow-lg shadow-indigo-500/20"
+              >
+                Permitir e Baixar
+              </Button>
+              <Button 
+                variant="ghost" 
+                onClick={() => setIsStoragePermissionOpen(false)}
+                className="h-12 rounded-2xl font-bold text-slate-400"
+              >
+                Agora não
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {isSettingsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
