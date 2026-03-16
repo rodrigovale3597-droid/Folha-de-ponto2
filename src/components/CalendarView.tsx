@@ -5,6 +5,7 @@ import {
   ChevronLeft, ChevronRight, Download, 
   CheckCircle2, Clock, XCircle, User 
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Button, Card, cn } from './UI';
 import { Employee } from '../types';
 
@@ -151,83 +152,99 @@ export const CalendarView = ({
       </div>
 
       <div className="lg:col-span-3">
+        <AnimatePresence mode="wait">
           {selectedEmployee ? (
-            <Card className="p-6 border-none bg-slate-50 dark:bg-slate-900 rounded-3xl">
-              <div className="flex items-center gap-4 mb-8">
-                <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm">
-                  <User size={32} className="text-slate-900 dark:text-white" />
+            <motion.div
+              key={selectedEmployee.id}
+              initial={{ opacity: 0, y: 10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            >
+              <Card className="p-6 border-none bg-slate-50 dark:bg-slate-900 rounded-3xl">
+                <div className="flex items-center gap-4 mb-8">
+                  <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm">
+                    <User size={32} className="text-slate-900 dark:text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black tracking-tighter italic">{selectedEmployee.name}</h2>
+                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Registros de {format(currentMonth, 'MMMM', { locale: ptBR })}</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-2xl font-black tracking-tighter italic">{selectedEmployee.name}</h2>
-                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Registros de {format(currentMonth, 'MMMM', { locale: ptBR })}</p>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
-                {daysInMonth.map(day => {
-                  const { type, location } = getAttendanceForDay(selectedEmployee.id, day);
-                  const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                  
-                  return (
-                    <button
-                      key={day.toISOString()}
-                      onClick={() => toggleAttendance(selectedEmployee.id, day, type || null)}
-                      className={cn(
-                        "aspect-square flex flex-col items-center justify-center gap-1 rounded-2xl transition-all border-2 relative group",
-                        isToday(day) && "ring-2 ring-slate-900 dark:ring-white ring-offset-2 dark:ring-offset-slate-950",
-                        type === 'D' && "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/20",
-                        type === 'M' && "bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/20",
-                        type === 'F' && "bg-rose-500 border-rose-500 text-white shadow-lg shadow-rose-500/20",
-                        !type && "bg-white dark:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700"
-                      )}
-                    >
-                      <span className={cn(
-                        "text-[10px] font-black uppercase tracking-widest",
-                        !type && (isWeekend ? "text-rose-400" : "text-slate-400"),
-                        type && "opacity-80"
-                      )}>
-                        {format(day, 'EEE', { locale: ptBR })}
-                      </span>
-                      <span className="text-lg font-black tracking-tighter italic">{format(day, 'dd')}</span>
-                      
-                      {type === 'D' && <CheckCircle2 size={14} className="absolute top-2 right-2 opacity-60" />}
-                      {type === 'M' && <Clock size={14} className="absolute top-2 right-2 opacity-60" />}
-                      {type === 'F' && <XCircle size={14} className="absolute top-2 right-2 opacity-60" />}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
+                  {daysInMonth.map(day => {
+                    const { type, location } = getAttendanceForDay(selectedEmployee.id, day);
+                    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                    
+                    return (
+                      <button
+                        key={day.toISOString()}
+                        onClick={() => toggleAttendance(selectedEmployee.id, day, type || null)}
+                        className={cn(
+                          "aspect-square flex flex-col items-center justify-center gap-1 rounded-2xl transition-all border-2 relative group",
+                          isToday(day) && "ring-2 ring-slate-900 dark:ring-white ring-offset-2 dark:ring-offset-slate-950",
+                          type === 'D' && "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/20",
+                          type === 'M' && "bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/20",
+                          type === 'F' && "bg-rose-500 border-rose-500 text-white shadow-lg shadow-rose-500/20",
+                          !type && "bg-white dark:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700"
+                        )}
+                      >
+                        <span className={cn(
+                          "text-[10px] font-black uppercase tracking-widest",
+                          !type && (isWeekend ? "text-rose-400" : "text-slate-400"),
+                          type && "opacity-80"
+                        )}>
+                          {format(day, 'EEE', { locale: ptBR })}
+                        </span>
+                        <span className="text-lg font-black tracking-tighter italic">{format(day, 'dd')}</span>
+                        
+                        {type === 'D' && <CheckCircle2 size={14} className="absolute top-2 right-2 opacity-60" />}
+                        {type === 'M' && <Clock size={14} className="absolute top-2 right-2 opacity-60" />}
+                        {type === 'F' && <XCircle size={14} className="absolute top-2 right-2 opacity-60" />}
 
-                      {location && (
-                        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-white opacity-80" title={location} />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                        {location && (
+                          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-white opacity-80" title={location} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
 
-              <div className="mt-8 flex flex-wrap gap-4 pt-8 border-t border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                  <span className="text-xs font-bold text-slate-500">Diária Inteira</span>
+                <div className="mt-8 flex flex-wrap gap-4 pt-8 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                    <span className="text-xs font-bold text-slate-500">Diária Inteira</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-amber-500" />
+                    <span className="text-xs font-bold text-slate-500">Meia Diária</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-rose-500" />
+                    <span className="text-xs font-bold text-slate-500">Falta</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-amber-500" />
-                  <span className="text-xs font-bold text-slate-500">Meia Diária</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-rose-500" />
-                  <span className="text-xs font-bold text-slate-500">Falta</span>
-                </div>
-              </div>
-            </Card>
+              </Card>
+            </motion.div>
           ) : (
-            <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-center p-8 bg-slate-50 dark:bg-slate-900 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+            <motion.div
+              key="empty"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full min-h-[400px] flex flex-col items-center justify-center text-center p-8 bg-slate-50 dark:bg-slate-900 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800"
+            >
               <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mb-4 shadow-sm">
                 <User size={32} className="text-slate-300" />
               </div>
               <h3 className="text-xl font-black tracking-tighter italic mb-2">Selecione um colaborador</h3>
               <p className="text-slate-500 font-medium max-w-xs">Escolha alguém na lista ao lado para visualizar e gerenciar sua folha de ponto.</p>
-            </div>
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
       </div>
     </div>
+  </div>
   );
 };

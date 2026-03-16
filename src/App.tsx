@@ -11,7 +11,7 @@ import { ptBR } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { 
-  Settings, X, Download, Sun, Moon, Lock, ChevronLeft, Trash2
+  Settings, X, Download, Sun, Moon, Lock, ChevronLeft, Trash2, Upload, Share2
 } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 
@@ -117,32 +117,85 @@ function AppContent() {
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => setToast({ id: Date.now(), message, type });
 
-  const exportData = () => {
-    setConfirmModal({
-      isOpen: true,
-      title: 'EXPORTAR BACKUP',
-      message: 'Deseja exportar um arquivo de backup com todos os funcionários e registros de ponto atuais?',
-      onConfirm: () => {
-        const data = {
-          employees,
-          attendance,
-          exportDate: new Date().toISOString(),
-          user: {
-            uid: user?.uid,
-            displayName: user?.displayName
-          }
-        };
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `PontoFacil_Backup_${format(new Date(), 'yyyy-MM-dd')}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showToast('Backup exportado com sucesso!');
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+  const exportData = async (share = false) => {
+    const data = {
+      employees,
+      attendance,
+      exportDate: new Date().toISOString(),
+      user: {
+        uid: user?.uid,
+        displayName: user?.displayName
       }
-    });
+    };
+    const fileName = `PontoFacil_Backup_${format(new Date(), 'yyyy-MM-dd')}.json`;
+    const jsonString = JSON.stringify(data, null, 2);
+
+    if (share && navigator.share) {
+      try {
+        const file = new File([jsonString], fileName, { type: 'application/json' });
+        await navigator.share({
+          files: [file],
+          title: 'Backup Ponto Fácil',
+          text: 'Arquivo de backup dos dados do Ponto Fácil'
+        });
+        showToast('Backup compartilhado!');
+        return;
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          console.error('Erro ao compartilhar:', err);
+        }
+      }
+    }
+
+    // Fallback to download
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Backup exportado com sucesso!');
+  };
+
+  const importData = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const content = event.target?.result as string;
+          const data = JSON.parse(content);
+
+          if (!data.employees || !data.attendance) {
+            throw new Error('Formato de arquivo inválido');
+          }
+
+          setConfirmModal({
+            isOpen: true,
+            title: 'RESTAURAR BACKUP',
+            message: `Deseja restaurar o backup de ${format(new Date(data.exportDate), 'dd/MM/yyyy HH:mm')}? Isso substituirá todos os dados atuais.`,
+            onConfirm: () => {
+              setEmployees(data.employees);
+              setAttendance(data.attendance);
+              showToast('Dados restaurados com sucesso!');
+              setConfirmModal(prev => ({ ...prev, isOpen: false }));
+              setIsSettingsOpen(false);
+            }
+          });
+        } catch (err) {
+          showToast('Erro ao importar arquivo', 'error');
+          console.error(err);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   };
 
   const clearAllData = async () => {
@@ -605,10 +658,24 @@ function AppContent() {
                     </div>
                     <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Backup de Dados</span>
                   </div>
-                  <Button variant="secondary" onClick={exportData} className="w-full h-11 rounded-xl font-bold">
-                    Exportar JSON
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="secondary" onClick={() => exportData(false)} className="h-11 rounded-xl font-bold gap-2">
+                      <Download size={16} />
+                      Baixar
+                    </Button>
+                    <Button variant="secondary" onClick={() => exportData(true)} className="h-11 rounded-xl font-bold gap-2">
+                      <Share2 size={16} />
+                      Enviar
+                    </Button>
+                  </div>
+                  
+                  <Button variant="ghost" onClick={importData} className="w-full h-11 rounded-xl font-bold gap-2 bg-white dark:bg-slate-800 shadow-sm">
+                    <Upload size={16} />
+                    Restaurar Backup
                   </Button>
-                  <p className="text-[10px] text-slate-400 text-center">Baixe uma cópia de todos os seus dados para segurança.</p>
+                  
+                  <p className="text-[10px] text-slate-400 text-center">Exporte seus dados para segurança ou restaure de um arquivo anterior.</p>
                 </div>
 
                 <div className="p-4 bg-rose-50 dark:bg-rose-900/10 rounded-2xl space-y-4">
