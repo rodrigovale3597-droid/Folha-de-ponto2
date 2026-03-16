@@ -7,6 +7,7 @@ export interface Employee {
   bankName?: string;
   bankAgency?: string;
   bankAccount?: string;
+  project?: string;
   ownerId: string;
   createdAt: string;
 }
@@ -16,6 +17,7 @@ export interface AttendanceRecord {
   employeeId: string;
   date: string; // YYYY-MM-DD
   type: 'D' | 'M' | 'F'; // Diária, Meia, Falta
+  location?: string;
   monthYear: string; // YYYY-MM
   ownerId: string;
 }

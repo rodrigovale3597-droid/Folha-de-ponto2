@@ -7,12 +7,19 @@ import { Button, Card, cn } from './UI';
 interface AttendanceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (type: 'D' | 'M' | 'F' | null) => void;
+  onSelect: (type: 'D' | 'M' | 'F' | null, location?: string) => void;
   date: Date;
   currentType: 'D' | 'M' | 'F' | null;
+  currentLocation?: string;
 }
 
-export const AttendanceModal = ({ isOpen, onClose, onSelect, date, currentType }: AttendanceModalProps) => {
+export const AttendanceModal = ({ isOpen, onClose, onSelect, date, currentType, currentLocation }: AttendanceModalProps) => {
+  const [location, setLocation] = React.useState(currentLocation || '');
+
+  React.useEffect(() => {
+    if (isOpen) setLocation(currentLocation || '');
+  }, [isOpen, currentLocation]);
+
   if (!isOpen) return null;
 
   const options = [
@@ -37,10 +44,21 @@ export const AttendanceModal = ({ isOpen, onClose, onSelect, date, currentType }
         </div>
 
         <div className="grid gap-3">
+          <div className="space-y-1 mb-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Local / Obra (Opcional)</label>
+            <input 
+              type="text" 
+              value={location} 
+              onChange={e => setLocation(e.target.value)} 
+              placeholder="Ex: Obra Centro, Outro Trabalho..."
+              className="w-full h-12 px-4 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-800 transition-all"
+            />
+          </div>
+
           {options.map((opt) => (
             <button
               key={opt.id}
-              onClick={() => onSelect(opt.id)}
+              onClick={() => onSelect(opt.id, location)}
               className={cn(
                 "flex items-center justify-between p-4 rounded-2xl transition-all border-2",
                 currentType === opt.id 

@@ -80,11 +80,12 @@ function AppContent() {
     date: Date | null;
     employeeId: string | null;
     currentType: 'D' | 'M' | 'F' | null;
-  }>({ isOpen: false, date: null, employeeId: null, currentType: null });
+    currentLocation?: string;
+  }>({ isOpen: false, date: null, employeeId: null, currentType: null, currentLocation: '' });
 
   // Form states
   const [empForm, setEmpForm] = useState({
-    name: '', role: '', dailyRate: '', pix: '', bankName: '', bankAgency: '', bankAccount: ''
+    name: '', role: '', dailyRate: '', pix: '', bankName: '', bankAgency: '', bankAccount: '', project: ''
   });
 
   useEffect(() => {
@@ -182,12 +183,13 @@ function AppContent() {
         bankName: empForm.bankName.trim(),
         bankAgency: empForm.bankAgency.trim(),
         bankAccount: empForm.bankAccount.trim(),
+        project: empForm.project.trim(),
         ownerId: user.uid,
         createdAt: new Date().toISOString()
       };
       setEmployees(prev => [...prev, newEmployee]);
       showToast('Funcionário cadastrado!');
-      setEmpForm({ name: '', role: '', dailyRate: '', pix: '', bankName: '', bankAgency: '', bankAccount: '' });
+      setEmpForm({ name: '', role: '', dailyRate: '', pix: '', bankName: '', bankAgency: '', bankAccount: '', project: '' });
       setIsAddEmployeeOpen(false);
     } catch (err) { 
       showToast('Erro ao cadastrar', 'error'); 
@@ -201,7 +203,8 @@ function AppContent() {
     if (!emp) return;
     setEmpForm({
       name: emp.name, role: emp.role || '', dailyRate: emp.dailyRate?.toString() || '',
-      pix: emp.pixKey || '', bankName: emp.bankName || '', bankAgency: emp.bankAgency || '', bankAccount: emp.bankAccount || ''
+      pix: emp.pixKey || '', bankName: emp.bankName || '', bankAgency: emp.bankAgency || '', bankAccount: emp.bankAccount || '',
+      project: emp.project || ''
     });
     setIsEditEmployeeOpen(true);
   };
@@ -223,6 +226,7 @@ function AppContent() {
             bankName: empForm.bankName.trim(),
             bankAgency: empForm.bankAgency.trim(),
             bankAccount: empForm.bankAccount.trim(),
+            project: empForm.project.trim(),
           };
         }
         return emp;
@@ -306,7 +310,7 @@ function AppContent() {
 
   const daysInMonth = useMemo(() => eachDayOfInterval({ start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) }), [currentMonth]);
 
-  const generatePDF = () => {
+  const generatePDF = async () => {
     const emp = employees.find(e => e.id === selectedEmployeeId);
     if (!emp) return;
     const monthStr = format(currentMonth, 'yyyy-MM');
@@ -321,11 +325,17 @@ function AppContent() {
     docPdf.setFontSize(12);
     docPdf.text(`Funcionário: ${emp.name}`, 20, 40);
     docPdf.text(`Cargo: ${emp.role || 'Colaborador'}`, 20, 48);
-    docPdf.text(`Mês: ${format(currentMonth, 'MMMM yyyy', { locale: ptBR })}`, 20, 56);
-    docPdf.text(`Total a Pagar: R$ ${total.toFixed(2)}`, 20, 64);
+    if (emp.project) {
+      docPdf.text(`Obra: ${emp.project}`, 20, 56);
+      docPdf.text(`Mês: ${format(currentMonth, 'MMMM yyyy', { locale: ptBR })}`, 20, 64);
+      docPdf.text(`Total a Pagar: R$ ${total.toFixed(2)}`, 20, 72);
+    } else {
+      docPdf.text(`Mês: ${format(currentMonth, 'MMMM yyyy', { locale: ptBR })}`, 20, 56);
+      docPdf.text(`Total a Pagar: R$ ${total.toFixed(2)}`, 20, 64);
+    }
     
     autoTable(docPdf, {
-      startY: 75,
+      startY: emp.project ? 85 : 75,
       head: [['Data', 'Tipo', 'Valor (R$)']],
       body: daysInMonth.map(d => {
         const record = attendance.find(a => a.employeeId === emp.id && a.date === format(d, 'yyyy-MM-dd'));
@@ -333,17 +343,49 @@ function AppContent() {
         let val = 0;
         if (record.type === 'D') val = rate;
         if (record.type === 'M') val = rate / 2;
+        
+        let typeLabel = record.type === 'D' ? 'Dia Inteiro' : record.type === 'M' ? 'Meio Período' : 'Falta';
+        if (record.location) {
+          typeLabel += ` (${record.location})`;
+        }
+
         return [
           format(d, 'dd/MM/yyyy'), 
-          record.type === 'D' ? 'Dia Inteiro' : record.type === 'M' ? 'Meio Período' : 'Falta',
+          typeLabel,
           val.toFixed(2)
         ];
       }).filter(r => r !== null) as any[][]
     });
 
-    // Use jsPDF's built-in save method which handles browser compatibility automatically
-    docPdf.save(`Ponto_${emp.name}_${monthStr}.pdf`);
-    
+    const fileName = `Ponto_${emp.name}_${monthStr}.pdf`;
+
+    // Mobile-first approach: Try Web Share API if available (best for "converted apps" and mobile)
+    if (navigator.share && navigator.canShare) {
+      const pdfBlob = docPdf.output('blob');
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      
+      if (navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'Relatório de Ponto',
+            text: `Relatório de Ponto - ${emp.name} - ${monthStr}`,
+          });
+          showToast('Relatório compartilhado com sucesso!');
+          return;
+        } catch (error) {
+          // If user cancelled or share failed, fallback to direct save
+          if ((error as any).name !== 'AbortError') {
+            console.error('Erro ao compartilhar:', error);
+          } else {
+            return; // User cancelled, don't trigger download
+          }
+        }
+      }
+    }
+
+    // Fallback/Desktop: Use jsPDF's built-in save method
+    docPdf.save(fileName);
     showToast('Relatório PDF gerado com sucesso!');
   };
 
@@ -372,35 +414,43 @@ function AppContent() {
           />
         )}
       </AnimatePresence>
-      <AttendanceModal isOpen={attendanceModal.isOpen} onClose={() => setAttendanceModal(p => ({ ...p, isOpen: false }))} onSelect={async (type) => {
-        if (!user || !attendanceModal.employeeId || !attendanceModal.date) return;
-        const dateStr = format(attendanceModal.date, 'yyyy-MM-dd');
-        const recordId = `${attendanceModal.employeeId}_${dateStr}`;
-        try {
-          if (type === null) {
-            setAttendance(prev => prev.filter(att => att.id !== recordId));
-            showToast('Registro removido');
-          } else {
-            const newRecord: AttendanceRecord = { 
-              id: recordId,
-              employeeId: attendanceModal.employeeId, 
-              date: dateStr, 
-              type, 
-              monthYear: format(attendanceModal.date, 'yyyy-MM'), 
-              ownerId: user.uid 
-            };
-            setAttendance(prev => {
-              const filtered = prev.filter(att => att.id !== recordId);
-              return [...filtered, newRecord];
-            });
-            showToast('Ponto registrado!');
+      <AttendanceModal 
+        isOpen={attendanceModal.isOpen} 
+        onClose={() => setAttendanceModal(p => ({ ...p, isOpen: false }))} 
+        onSelect={async (type, location) => {
+          if (!user || !attendanceModal.employeeId || !attendanceModal.date) return;
+          const dateStr = format(attendanceModal.date, 'yyyy-MM-dd');
+          const recordId = `${attendanceModal.employeeId}_${dateStr}`;
+          try {
+            if (type === null) {
+              setAttendance(prev => prev.filter(att => att.id !== recordId));
+              showToast('Registro removido');
+            } else {
+              const newRecord: AttendanceRecord = { 
+                id: recordId,
+                employeeId: attendanceModal.employeeId, 
+                date: dateStr, 
+                type, 
+                location: location?.trim() || undefined,
+                monthYear: format(attendanceModal.date, 'yyyy-MM'), 
+                ownerId: user.uid 
+              };
+              setAttendance(prev => {
+                const filtered = prev.filter(att => att.id !== recordId);
+                return [...filtered, newRecord];
+              });
+              showToast('Ponto registrado!');
+            }
+          } catch (err) {
+            showToast('Erro ao salvar registro', 'error');
+            console.error(err);
           }
-        } catch (err) {
-          showToast('Erro ao salvar registro', 'error');
-          console.error(err);
-        }
-        setAttendanceModal(p => ({ ...p, isOpen: false }));
-      }} date={attendanceModal.date || new Date()} currentType={attendanceModal.currentType} />
+          setAttendanceModal(p => ({ ...p, isOpen: false }));
+        }} 
+        date={attendanceModal.date || new Date()} 
+        currentType={attendanceModal.currentType}
+        currentLocation={attendanceModal.currentLocation}
+      />
 
       <div className="hidden lg:block">
         <Sidebar 
@@ -437,7 +487,31 @@ function AppContent() {
           <div className="max-w-6xl mx-auto">
             {activeView === 'dashboard' && <Dashboard employees={employees} attendance={attendance} currentMonth={currentMonth} setCurrentMonth={setCurrentMonth} getSummary={getSummary} setActiveView={setActiveView} />}
             {activeView === 'team' && <Team employees={employees} setIsAddEmployeeOpen={setIsAddEmployeeOpen} setSelectedEmployeeId={setSelectedEmployeeId} openEditModal={openEditModal} deleteEmployee={deleteEmployee} setActiveView={setActiveView} />}
-            {activeView === 'calendar' && <CalendarView employees={employees} selectedEmployeeId={selectedEmployeeId} setSelectedEmployeeId={setSelectedEmployeeId} currentMonth={currentMonth} setCurrentMonth={setCurrentMonth} daysInMonth={daysInMonth} getAttendanceForDay={(id, d) => attendance.find(a => a.employeeId === id && a.date === format(d, 'yyyy-MM-dd'))?.type} toggleAttendance={(id, d, t) => setAttendanceModal({ isOpen: true, date: d, employeeId: id, currentType: t })} generatePDF={generatePDF} />}
+            {activeView === 'calendar' && (
+              <CalendarView 
+                employees={employees} 
+                selectedEmployeeId={selectedEmployeeId} 
+                setSelectedEmployeeId={setSelectedEmployeeId} 
+                currentMonth={currentMonth} 
+                setCurrentMonth={setCurrentMonth} 
+                daysInMonth={daysInMonth} 
+                getAttendanceForDay={(id, d) => {
+                  const record = attendance.find(a => a.employeeId === id && a.date === format(d, 'yyyy-MM-dd'));
+                  return { type: record?.type, location: record?.location };
+                }} 
+                toggleAttendance={(id, d, t) => {
+                  const record = attendance.find(a => a.employeeId === id && a.date === format(d, 'yyyy-MM-dd'));
+                  setAttendanceModal({ 
+                    isOpen: true, 
+                    date: d, 
+                    employeeId: id, 
+                    currentType: t,
+                    currentLocation: record?.location
+                  });
+                }} 
+                generatePDF={generatePDF} 
+              />
+            )}
           </div>
         </main>
       </div>
@@ -571,6 +645,7 @@ function AppContent() {
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Informações Básicas</label>
                   <input type="text" value={empForm.name} onChange={e => setEmpForm({...empForm, name: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Nome Completo" required />
+                  <input type="text" value={empForm.project} onChange={e => setEmpForm({...empForm, project: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Nome da Obra" />
                   <input type="text" value={empForm.role} onChange={e => setEmpForm({...empForm, role: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Cargo / Função" />
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>

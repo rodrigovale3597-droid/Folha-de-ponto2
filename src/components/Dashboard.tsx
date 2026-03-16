@@ -133,7 +133,9 @@ export const Dashboard = ({
                     </div>
                     <div>
                       <p className="font-black tracking-tight">{emp.name}</p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{emp.role || 'Colaborador'}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        {emp.role || 'Colaborador'} {emp.project && `• ${emp.project}`}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">

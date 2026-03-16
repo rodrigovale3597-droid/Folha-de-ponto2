@@ -16,11 +16,26 @@ export const Team = ({
   employees, setIsAddEmployeeOpen, setSelectedEmployeeId, openEditModal, deleteEmployee, setActiveView 
 }: TeamProps) => {
   const [search, setSearch] = React.useState('');
+  const [roleFilter, setRoleFilter] = React.useState('all');
+  const [projectFilter, setProjectFilter] = React.useState('all');
   
-  const filtered = employees.filter(e => 
-    e.name.toLowerCase().includes(search.toLowerCase()) || 
-    e.role?.toLowerCase().includes(search.toLowerCase())
-  );
+  const roles = React.useMemo(() => {
+    const uniqueRoles = new Set(employees.map(e => e.role || 'Sem Cargo').filter(Boolean));
+    return ['all', ...Array.from(uniqueRoles)].sort();
+  }, [employees]);
+
+  const projects = React.useMemo(() => {
+    const uniqueProjects = new Set(employees.map(e => e.project || 'Sem Obra').filter(Boolean));
+    return ['all', ...Array.from(uniqueProjects)].sort();
+  }, [employees]);
+
+  const filtered = employees.filter(e => {
+    const matchesSearch = e.name.toLowerCase().includes(search.toLowerCase());
+    const matchesRole = roleFilter === 'all' || (e.role || 'Sem Cargo') === roleFilter;
+    const matchesProject = projectFilter === 'all' || (e.project || 'Sem Obra') === projectFilter;
+    
+    return matchesSearch && matchesRole && matchesProject;
+  });
 
   return (
     <div className="space-y-8">
@@ -35,15 +50,46 @@ export const Team = ({
         </Button>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-        <input 
-          type="text" 
-          placeholder="Buscar por nome ou cargo..." 
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full h-14 pl-12 pr-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl font-bold focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-800 transition-all"
-        />
+      <div className="space-y-4">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <input 
+            type="text" 
+            placeholder="Buscar por nome..." 
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full h-14 pl-12 pr-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl font-bold focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-800 transition-all"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Filtrar por Cargo</label>
+            <select 
+              value={roleFilter} 
+              onChange={e => setRoleFilter(e.target.value)}
+              className="w-full h-12 px-4 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-800 transition-all appearance-none cursor-pointer"
+            >
+              <option value="all">Todos os Cargos</option>
+              {roles.filter(r => r !== 'all').map(role => (
+                <option key={role} value={role}>{role}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Filtrar por Obra</label>
+            <select 
+              value={projectFilter} 
+              onChange={e => setProjectFilter(e.target.value)}
+              className="w-full h-12 px-4 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-800 transition-all appearance-none cursor-pointer"
+            >
+              <option value="all">Todas as Obras</option>
+              {projects.filter(p => p !== 'all').map(project => (
+                <option key={project} value={project}>{project}</option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -57,7 +103,9 @@ export const Team = ({
                   </div>
                   <div>
                     <h3 className="font-black text-lg tracking-tight leading-none mb-1">{emp.name}</h3>
-                    <p className="text-xs font-black uppercase tracking-widest text-slate-400">{emp.role || 'Colaborador'}</p>
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                      {emp.role || 'Colaborador'} {emp.project && `• ${emp.project}`}
+                    </p>
                   </div>
                 </div>
                 <div className="flex gap-1">

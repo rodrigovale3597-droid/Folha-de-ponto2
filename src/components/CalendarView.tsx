@@ -15,7 +15,7 @@ interface CalendarViewProps {
   currentMonth: Date;
   setCurrentMonth: (date: Date) => void;
   daysInMonth: Date[];
-  getAttendanceForDay: (id: string, d: Date) => 'D' | 'M' | 'F' | undefined;
+  getAttendanceForDay: (id: string, d: Date) => { type: 'D' | 'M' | 'F' | undefined; location?: string };
   toggleAttendance: (id: string, d: Date, t: 'D' | 'M' | 'F' | null) => void;
   generatePDF: () => void;
 }
@@ -31,7 +31,7 @@ export const CalendarView = ({
   const filteredEmployees = React.useMemo(() => {
     if (!filter) return employees;
     return employees.filter(emp => 
-      daysInMonth.some(day => getAttendanceForDay(emp.id, day) === filter)
+      daysInMonth.some(day => getAttendanceForDay(emp.id, day).type === filter)
     );
   }, [employees, filter, daysInMonth, getAttendanceForDay]);
 
@@ -165,7 +165,7 @@ export const CalendarView = ({
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
                 {daysInMonth.map(day => {
-                  const type = getAttendanceForDay(selectedEmployee.id, day);
+                  const { type, location } = getAttendanceForDay(selectedEmployee.id, day);
                   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                   
                   return (
@@ -193,6 +193,10 @@ export const CalendarView = ({
                       {type === 'D' && <CheckCircle2 size={14} className="absolute top-2 right-2 opacity-60" />}
                       {type === 'M' && <Clock size={14} className="absolute top-2 right-2 opacity-60" />}
                       {type === 'F' && <XCircle size={14} className="absolute top-2 right-2 opacity-60" />}
+
+                      {location && (
+                        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-white opacity-80" title={location} />
+                      )}
                     </button>
                   );
                 })}
