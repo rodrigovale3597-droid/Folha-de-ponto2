@@ -1,0 +1,156 @@
+import React from 'react';
+import { format, addMonths, subMonths } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { 
+  Users, Calendar as CalendarIcon, TrendingUp, 
+  ChevronLeft, ChevronRight, ArrowRight, UserPlus 
+} from 'lucide-react';
+import { Card, cn } from './UI';
+import { Employee, AttendanceRecord } from '../types';
+
+interface DashboardProps {
+  employees: Employee[];
+  attendance: AttendanceRecord[];
+  currentMonth: Date;
+  setCurrentMonth: (date: Date) => void;
+  getSummary: (id: string, monthYear: string) => any;
+  setActiveView: (view: 'dashboard' | 'team' | 'calendar') => void;
+}
+
+export const Dashboard = ({ 
+  employees, attendance, currentMonth, setCurrentMonth, getSummary, setActiveView 
+}: DashboardProps) => {
+  const monthStr = format(currentMonth, 'yyyy-MM');
+  
+  const totalStats = employees.reduce((acc, emp) => {
+    const summary = getSummary(emp.id, monthStr);
+    const rate = emp.dailyRate || 0;
+    return {
+      diarias: acc.diarias + summary.diarias,
+      meias: acc.meias + summary.meias,
+      totalValue: acc.totalValue + (summary.diarias * rate) + (summary.meias * (rate / 2))
+    };
+  }, { diarias: 0, meias: 0, totalValue: 0 });
+
+  return (
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-black tracking-tighter italic">Olá, Administrador</h1>
+          <p className="text-slate-500 font-medium">Aqui está o resumo de {format(currentMonth, 'MMMM', { locale: ptBR })}.</p>
+        </div>
+        <div className="flex items-center bg-slate-100 dark:bg-slate-900 rounded-2xl p-1">
+          <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all"><ChevronLeft size={20} /></button>
+          <span className="px-4 font-black text-sm uppercase tracking-widest">{format(currentMonth, 'MMM yy', { locale: ptBR })}</span>
+          <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all"><ChevronRight size={20} /></button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="p-6 bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-none shadow-xl">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 rounded-xl bg-white/10 dark:bg-slate-900/10 flex items-center justify-center">
+              <TrendingUp size={20} />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Total Mensal</span>
+          </div>
+          <div className="space-y-1">
+            <p className="text-3xl font-black tracking-tighter italic">R$ {totalStats.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-xs font-bold opacity-60">Previsão de pagamentos</p>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center">
+              <Users size={20} className="text-emerald-500" />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Equipe Ativa</span>
+          </div>
+          <div className="space-y-1">
+            <p className="text-3xl font-black tracking-tighter italic">{employees.length}</p>
+            <p className="text-xs font-bold text-slate-500">Colaboradores cadastrados</p>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center">
+              <CalendarIcon size={20} className="text-amber-500" />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Diárias</span>
+          </div>
+          <div className="space-y-1">
+            <p className="text-3xl font-black tracking-tighter italic">{totalStats.diarias + (totalStats.meias * 0.5)}</p>
+            <p className="text-xs font-bold text-slate-500">Trabalhadas no mês</p>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <h3 className="text-lg font-black tracking-tighter italic">Ações Rápidas</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <button 
+              onClick={() => setActiveView('team')}
+              className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-transparent hover:border-slate-200 dark:hover:border-slate-700 group"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform">
+                <UserPlus size={24} className="text-slate-900 dark:text-white" />
+              </div>
+              <span className="text-xs font-black uppercase tracking-widest">Gerenciar Equipe</span>
+            </button>
+            <button 
+              onClick={() => setActiveView('calendar')}
+              className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-transparent hover:border-slate-200 dark:hover:border-slate-700 group"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform">
+                <CalendarIcon size={24} className="text-slate-900 dark:text-white" />
+              </div>
+              <span className="text-xs font-black uppercase tracking-widest">Registrar Ponto</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <h3 className="text-lg font-black tracking-tighter italic">Resumo por Funcionário</h3>
+            <button onClick={() => setActiveView('calendar')} className="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1">Ver Todos <ArrowRight size={14} /></button>
+          </div>
+          <div className="space-y-3">
+            {employees.slice(0, 4).map(emp => {
+              const summary = getSummary(emp.id, monthStr);
+              const rate = emp.dailyRate || 0;
+              const total = (summary.diarias * rate) + (summary.meias * (rate / 2));
+              
+              return (
+                <Card key={emp.id} className="p-4 flex items-center justify-between hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center font-black italic text-sm">
+                      {emp.name.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="font-black tracking-tight">{emp.name}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{emp.role || 'Colaborador'}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black tracking-tight">R$ {total.toFixed(2)}</p>
+                    <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">{summary.total} Diárias</p>
+                  </div>
+                </Card>
+              );
+            })}
+            {employees.length === 0 && (
+              <div className="py-12 text-center bg-slate-50 dark:bg-slate-900 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                <p className="text-sm font-bold text-slate-400">Nenhum colaborador cadastrado.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
