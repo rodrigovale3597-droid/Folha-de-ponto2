@@ -401,15 +401,27 @@ function AppContent() {
     const rate = emp.dailyRate || 0;
     const total = (summary.diarias * rate) + (summary.meias * (rate / 2));
     
-    const docPdf = new jsPDF();
+    const docPdf = new jsPDF({
+      orientation: 'p',
+      unit: 'mm',
+      format: 'a4',
+      putOnlyUsedFonts: true
+    });
+    
+    // Helper to ensure text is handled correctly by jsPDF standard fonts
+    // Normalizes text by removing accents which often cause encoding issues in jsPDF default fonts
+    const t = (text: string) => {
+      if (!text) return '';
+      return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    };
     
     // PDF Metadata
     docPdf.setProperties({
-      title: `Relatório de Ponto - ${emp.name}`,
-      subject: 'Relatório Mensal de Frequência',
-      author: 'Ponto Fácil',
-      keywords: 'ponto, frequência, relatório',
-      creator: 'Ponto Fácil App'
+      title: `Relatorio de Ponto - ${emp.name}`,
+      subject: 'Relatorio Mensal de Frequencia',
+      author: 'Ponto Facil',
+      keywords: 'ponto, frequencia, relatorio',
+      creator: 'Ponto Facil App'
     });
 
     // Header Design
@@ -419,11 +431,11 @@ function AppContent() {
     docPdf.setTextColor(255, 255, 255);
     docPdf.setFontSize(24);
     docPdf.setFont('helvetica', 'bold');
-    docPdf.text('PONTO FÁCIL', 105, 20, { align: 'center' });
+    docPdf.text('PONTO FACIL', 105, 20, { align: 'center' });
     
     docPdf.setFontSize(10);
     docPdf.setFont('helvetica', 'normal');
-    docPdf.text('RELATÓRIO MENSAL DE FREQUÊNCIA E PAGAMENTO', 105, 30, { align: 'center' });
+    docPdf.text('RELATORIO MENSAL DE FREQUENCIA E PAGAMENTO', 105, 30, { align: 'center' });
 
     // Employee Info Box
     docPdf.setTextColor(15, 23, 42);
@@ -436,19 +448,19 @@ function AppContent() {
 
     docPdf.setFont('helvetica', 'normal');
     docPdf.setFontSize(10);
-    docPdf.text(`Nome: ${emp.name}`, 20, 65);
-    docPdf.text(`Cargo: ${emp.role || 'Não informado'}`, 20, 72);
-    docPdf.text(`Obra/Projeto: ${emp.project || 'Não informado'}`, 20, 79);
+    docPdf.text(`Nome: ${t(emp.name)}`, 20, 65);
+    docPdf.text(`Cargo: ${t(emp.role) || 'Nao informado'}`, 20, 72);
+    docPdf.text(`Obra/Projeto: ${t(emp.project) || 'Nao informado'}`, 20, 79);
     
-    docPdf.text(`Mês de Referência: ${format(currentMonth, 'MMMM yyyy', { locale: ptBR }).toUpperCase()}`, 120, 65);
-    docPdf.text(`Valor da Diária: R$ ${rate.toFixed(2)}`, 120, 72);
+    docPdf.text(`Mes de Referencia: ${t(format(currentMonth, 'MMMM yyyy', { locale: ptBR }).toUpperCase())}`, 120, 65);
+    docPdf.text(`Valor da Diaria: R$ ${rate.toFixed(2)}`, 120, 72);
     docPdf.setFont('helvetica', 'bold');
     docPdf.text(`TOTAL A PAGAR: R$ ${total.toFixed(2)}`, 120, 79);
 
     // Summary Table
     autoTable(docPdf, {
       startY: 90,
-      head: [['Data', 'Dia', 'Tipo de Registro', 'Localização', 'Valor']],
+      head: [['Data', 'Dia', 'Tipo de Registro', 'Localizacao', 'Valor']],
       body: daysInMonth.map(d => {
         const record = attendance.find(a => a.employeeId === emp.id && a.date === format(d, 'yyyy-MM-dd'));
         if (!record) return null;
@@ -457,19 +469,19 @@ function AppContent() {
         let typeLabel = '';
         if (record.type === 'D') {
           val = rate;
-          typeLabel = 'DIÁRIA INTEIRA';
+          typeLabel = 'DIARIA INTEIRA';
         } else if (record.type === 'M') {
           val = rate / 2;
-          typeLabel = 'MEIA DIÁRIA';
+          typeLabel = 'MEIA DIARIA';
         } else {
           typeLabel = 'FALTA';
         }
 
         return [
           format(d, 'dd/MM/yyyy'),
-          format(d, 'EEE', { locale: ptBR }).toUpperCase(),
+          t(format(d, 'EEE', { locale: ptBR }).toUpperCase()),
           typeLabel,
-          record.location || '-',
+          t(record.location) || '-',
           `R$ ${val.toFixed(2)}`
         ];
       }).filter(r => r !== null) as any[][],
@@ -478,11 +490,13 @@ function AppContent() {
         textColor: [255, 255, 255],
         fontSize: 9,
         fontStyle: 'bold',
-        halign: 'center'
+        halign: 'center',
+        font: 'helvetica'
       },
       bodyStyles: {
         fontSize: 8,
-        halign: 'center'
+        halign: 'center',
+        font: 'helvetica'
       },
       alternateRowStyles: {
         fillColor: [248, 250, 252]
@@ -497,7 +511,7 @@ function AppContent() {
       docPdf.text('Assinatura do Colaborador', 55, finalY + 5, { align: 'center' });
       
       docPdf.line(120, finalY, 190, finalY);
-      docPdf.text('Assinatura do Responsável', 155, finalY + 5, { align: 'center' });
+      docPdf.text('Assinatura do Responsavel', 155, finalY + 5, { align: 'center' });
     }
 
     const fileName = `PontoFacil_${emp.name.replace(/\s+/g, '_')}_${monthStr}.pdf`;
