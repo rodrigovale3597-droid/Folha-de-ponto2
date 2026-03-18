@@ -7,6 +7,7 @@ export interface Employee {
   bankName?: string;
   bankAgency?: string;
   bankAccount?: string;
+  paymentNote?: string;
   project?: string;
   ownerId: string;
   createdAt: string;
@@ -20,9 +21,12 @@ export interface AttendanceRecord {
   location?: string;
   monthYear: string; // YYYY-MM
   ownerId: string;
+  timestamp?: string; // ISO string for exact time of marking
 }
 
 export interface UserConfig {
   ownerId: string;
   pin?: string;
+  notificationsEnabled?: boolean;
+  notificationTime?: string; // HH:mm
 }

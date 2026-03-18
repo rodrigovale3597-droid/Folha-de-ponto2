@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Card, Button, cn } from './UI';
 import { Employee, AttendanceRecord } from '../types';
+import { MonthYearPicker } from './MonthYearPicker';
 
 interface DashboardProps {
   employees: Employee[];
@@ -23,6 +24,7 @@ export const Dashboard = ({
   employees, attendance, currentMonth, setCurrentMonth, getSummary, setActiveView,
   onInstallPWA, isInstallable
 }: DashboardProps) => {
+  const [isPickerOpen, setIsPickerOpen] = React.useState(false);
   const monthStr = format(currentMonth, 'yyyy-MM');
   
   const totalStats = employees.reduce((acc, emp) => {
@@ -44,9 +46,22 @@ export const Dashboard = ({
         </div>
         <div className="flex items-center bg-slate-100 dark:bg-slate-900 rounded-2xl p-1">
           <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all"><ChevronLeft size={20} /></button>
-          <span className="px-4 font-black text-sm uppercase tracking-widest">{format(currentMonth, 'MMM yy', { locale: ptBR })}</span>
+          <button 
+            onClick={() => setIsPickerOpen(true)}
+            className="px-4 font-black text-sm uppercase tracking-widest hover:text-indigo-600 transition-colors"
+            title="Escolher mês e ano"
+          >
+            {format(currentMonth, 'MMM yy', { locale: ptBR })}
+          </button>
           <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all"><ChevronRight size={20} /></button>
         </div>
+
+        <MonthYearPicker 
+          isOpen={isPickerOpen}
+          onClose={() => setIsPickerOpen(false)}
+          currentDate={currentMonth}
+          onChange={setCurrentMonth}
+        />
       </div>
       
       {isInstallable && (
@@ -111,6 +126,53 @@ export const Dashboard = ({
             <p className="text-xs font-bold text-slate-500">Trabalhadas no mês</p>
           </div>
         </Card>
+      </div>
+      
+      <div className="space-y-4">
+        <h3 className="text-lg font-black tracking-tighter italic px-2">Detalhamento do Mês</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="p-5 bg-indigo-50 dark:bg-indigo-500/10 border-none flex flex-col justify-between">
+            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500/60 mb-2">Diárias Completas</p>
+            <div className="flex items-end justify-between">
+              <p className="text-3xl font-black italic text-indigo-600 dark:text-indigo-400">{totalStats.diarias}</p>
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center">
+                <div className="w-4 h-4 rounded-sm bg-indigo-500" />
+              </div>
+            </div>
+          </Card>
+          
+          <Card className="p-5 bg-amber-50 dark:bg-amber-500/10 border-none flex flex-col justify-between">
+            <p className="text-[10px] font-black uppercase tracking-widest text-amber-500/60 mb-2">Meias Diárias</p>
+            <div className="flex items-end justify-between">
+              <p className="text-3xl font-black italic text-amber-600 dark:text-amber-400">{totalStats.meias}</p>
+              <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center">
+                <div className="w-4 h-2 rounded-sm bg-amber-500" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-5 bg-slate-50 dark:bg-slate-900 border-none flex flex-col justify-between">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total de Registros</p>
+            <div className="flex items-end justify-between">
+              <p className="text-3xl font-black italic text-slate-700 dark:text-slate-300">{totalStats.diarias + totalStats.meias}</p>
+              <div className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
+                <TrendingUp size={16} className="text-slate-500" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-5 bg-emerald-50 dark:bg-emerald-500/10 border-none flex flex-col justify-between">
+            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500/60 mb-2">Média p/ Colab.</p>
+            <div className="flex items-end justify-between">
+              <p className="text-3xl font-black italic text-emerald-600 dark:text-emerald-400">
+                {employees.length > 0 ? ((totalStats.diarias + totalStats.meias * 0.5) / employees.length).toFixed(1) : '0'}
+              </p>
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
+                <Users size={16} className="text-emerald-500" />
+              </div>
+            </div>
+          </Card>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

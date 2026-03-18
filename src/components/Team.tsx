@@ -1,10 +1,12 @@
 import React from 'react';
-import { UserPlus, Search, Edit2, Trash2, CreditCard, Banknote, Users } from 'lucide-react';
+import { format } from 'date-fns';
+import { UserPlus, Search, Edit2, Trash2, CreditCard, Banknote, Users, CalendarDays } from 'lucide-react';
 import { Button, Card } from './UI';
-import { Employee } from '../types';
+import { Employee, AttendanceRecord } from '../types';
 
 interface TeamProps {
   employees: Employee[];
+  attendance: AttendanceRecord[];
   setIsAddEmployeeOpen: (open: boolean) => void;
   setSelectedEmployeeId: (id: string | null) => void;
   openEditModal: () => void;
@@ -13,11 +15,13 @@ interface TeamProps {
 }
 
 export const Team = ({ 
-  employees, setIsAddEmployeeOpen, setSelectedEmployeeId, openEditModal, deleteEmployee, setActiveView 
+  employees, attendance, setIsAddEmployeeOpen, setSelectedEmployeeId, openEditModal, deleteEmployee, setActiveView 
 }: TeamProps) => {
   const [search, setSearch] = React.useState('');
   const [roleFilter, setRoleFilter] = React.useState('all');
   const [projectFilter, setProjectFilter] = React.useState('all');
+  
+  const currentMonthStr = format(new Date(), 'yyyy-MM');
   
   const roles = React.useMemo(() => {
     const uniqueRoles = new Set(employees.map(e => e.role || 'Sem Cargo').filter(Boolean));
@@ -102,10 +106,23 @@ export const Team = ({
                     {emp.name.charAt(0)}
                   </div>
                   <div>
-                    <h3 className="font-black text-lg tracking-tight leading-none mb-1">{emp.name}</h3>
-                    <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-                      {emp.role || 'Colaborador'} {emp.project && `• ${emp.project}`}
-                    </p>
+                    <h3 className="font-black text-lg tracking-tight leading-none mb-2 flex items-center gap-2 flex-wrap">
+                      {emp.name}
+                      <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-100 dark:border-indigo-500/20">
+                        {emp.role || 'Colaborador'}
+                      </span>
+                    </h3>
+                    {emp.project && (
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        Obra: {emp.project}
+                      </p>
+                    )}
+                    <div className="mt-2 flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                      <CalendarDays size={14} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">
+                        {attendance.filter(a => a.employeeId === emp.id && a.monthYear === currentMonthStr && a.type === 'D').length} Diárias no mês
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-1">
@@ -146,6 +163,11 @@ export const Team = ({
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Chave PIX</p>
                     <p className="font-bold truncate">{emp.pixKey || 'Não informada'}</p>
+                    {emp.paymentNote && (
+                      <p className="text-[10px] font-medium text-slate-500 italic truncate mt-0.5">
+                        Titular: {emp.paymentNote}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-sm">

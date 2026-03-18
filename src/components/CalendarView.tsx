@@ -3,14 +3,17 @@ import { format, addMonths, subMonths, isSameMonth, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   ChevronLeft, ChevronRight, Download, 
-  CheckCircle2, Clock, XCircle, User 
+  CheckCircle2, Clock, XCircle, User, History 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button, Card, cn } from './UI';
-import { Employee } from '../types';
+import { Employee, AttendanceRecord } from '../types';
+import { MonthYearPicker } from './MonthYearPicker';
+import { AttendanceHistory } from './AttendanceHistory';
 
 interface CalendarViewProps {
   employees: Employee[];
+  attendance: AttendanceRecord[];
   selectedEmployeeId: string | null;
   setSelectedEmployeeId: (id: string | null) => void;
   currentMonth: Date;
@@ -22,10 +25,12 @@ interface CalendarViewProps {
 }
 
 export const CalendarView = ({ 
-  employees, selectedEmployeeId, setSelectedEmployeeId, 
+  employees, attendance, selectedEmployeeId, setSelectedEmployeeId, 
   currentMonth, setCurrentMonth, daysInMonth, 
   getAttendanceForDay, toggleAttendance, generatePDF 
 }: CalendarViewProps) => {
+  const [isPickerOpen, setIsPickerOpen] = React.useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = React.useState(false);
   const [filter, setFilter] = React.useState<'D' | 'M' | 'F' | null>(null);
   const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
 
@@ -46,17 +51,51 @@ export const CalendarView = ({
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-slate-100 dark:bg-slate-900 rounded-2xl p-1">
             <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all"><ChevronLeft size={20} /></button>
-            <span className="px-4 font-black text-sm uppercase tracking-widest min-w-[120px] text-center">{format(currentMonth, 'MMMM yyyy', { locale: ptBR })}</span>
+            <button 
+              onClick={() => setIsPickerOpen(true)}
+              className="px-4 font-black text-sm uppercase tracking-widest min-w-[120px] text-center hover:text-indigo-600 transition-colors"
+              title="Escolher mês e ano"
+            >
+              {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
+            </button>
             <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all"><ChevronRight size={20} /></button>
           </div>
+
+          <MonthYearPicker 
+            isOpen={isPickerOpen}
+            onClose={() => setIsPickerOpen(false)}
+            currentDate={currentMonth}
+            onChange={setCurrentMonth}
+          />
           {selectedEmployeeId && (
-            <Button onClick={generatePDF} variant="secondary" className="rounded-2xl h-12 px-4 gap-2">
-              <Download size={20} />
-              <span className="hidden md:inline">PDF</span>
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => setIsHistoryOpen(true)} 
+                variant="secondary" 
+                className="rounded-2xl h-12 px-4 gap-2"
+                title="Ver Histórico Detalhado"
+              >
+                <History size={20} />
+                <span className="hidden md:inline text-xs font-black italic tracking-tight">Histórico</span>
+              </Button>
+              <Button onClick={generatePDF} variant="secondary" className="rounded-2xl h-12 px-4 gap-2">
+                <Download size={20} />
+                <span className="hidden md:inline">PDF</span>
+              </Button>
+            </div>
           )}
         </div>
       </div>
+
+      {selectedEmployee && (
+        <AttendanceHistory 
+          isOpen={isHistoryOpen}
+          onClose={() => setIsHistoryOpen(false)}
+          employee={selectedEmployee}
+          attendance={attendance}
+          month={currentMonth}
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-1 space-y-6">

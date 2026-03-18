@@ -11,9 +11,10 @@ import { ptBR } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { 
-  Settings, X, Download, Sun, Moon, Lock, ChevronLeft, Trash2, Upload, Share2
+  Settings, X, Download, Sun, Moon, Lock, ChevronLeft, Trash2, Upload, Share2,
+  Bell, BellOff, Clock as ClockIcon
 } from 'lucide-react';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button, Card, cn } from './components/UI';
@@ -50,6 +51,7 @@ function AppContent() {
     return localStorage.getItem('pontofacil_storage_permission') === 'true';
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastNotificationDate, setLastNotificationDate] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('theme');
@@ -68,7 +70,43 @@ function AppContent() {
   const [activeView, setActiveView] = useState<'dashboard' | 'team' | 'calendar'>('dashboard');
   const [toast, setToast] = useState<{ id: number; message: string; type: 'success' | 'error' } | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isLocked, setIsLocked] = useState(() => {
+    const saved = localStorage.getItem('pontofacil_config');
+    if (saved) {
+      try {
+        const config = JSON.parse(saved);
+        return !!config.pin;
+      } catch (e) {
+        return false;
+      }
+    }
+    return false;
+  });
+  const [pinInput, setPinInput] = useState('');
   
+  // Reset month to current when entering calendar view (PDF functionality)
+  useEffect(() => {
+    if (activeView === 'calendar') {
+      const now = new Date();
+      // Only reset if it's not already the current month to avoid unnecessary state updates
+      if (format(currentMonth, 'yyyy-MM') !== format(now, 'yyyy-MM')) {
+        setCurrentMonth(now);
+      }
+    }
+  }, [activeView]);
+
+  const handleUnlock = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (pinInput === userConfig?.pin) {
+      setIsLocked(false);
+      setPinInput('');
+      showToast('Acesso liberado', 'success');
+    } else {
+      setPinInput('');
+      showToast('PIN incorreto', 'error');
+    }
+  };
+
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
@@ -108,8 +146,9 @@ function AppContent() {
   }>({ isOpen: false, date: null, employeeId: null, currentType: null, currentLocation: '' });
 
   // Form states
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [empForm, setEmpForm] = useState({
-    name: '', role: '', dailyRate: '', pix: '', bankName: '', bankAgency: '', bankAccount: '', project: ''
+    name: '', role: '', dailyRate: '', pix: '', bankName: '', bankAgency: '', bankAccount: '', project: '', paymentNote: ''
   });
 
   useEffect(() => {
@@ -145,50 +184,77 @@ function AppContent() {
     const data = {
       employees,
       attendance,
+      userConfig,
+      theme: darkMode ? 'dark' : 'light',
       exportDate: new Date().toISOString(),
+      version: '1.2',
       user: {
         uid: user?.uid,
         displayName: user?.displayName
       }
     };
-    const fileName = `PontoFacil_Backup_${format(new Date(), 'yyyy-MM-dd')}.json`;
+    const fileName = `PontoFacil_Backup_${format(new Date(), 'yyyy-MM-dd_HH-mm')}.json`;
     const jsonString = JSON.stringify(data, null, 2);
 
     if (share && navigator.share) {
       try {
         const file = new File([jsonString], fileName, { type: 'application/json' });
-        await navigator.share({
-          files: [file],
-          title: 'Backup Ponto Fácil',
-          text: 'Arquivo de backup dos dados do Ponto Fácil'
-        });
-        showToast('Backup compartilhado!');
-        return;
+        // Check if sharing files is supported
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'Backup Ponto Fácil',
+            text: `Backup realizado em ${format(new Date(), 'dd/MM/yyyy HH:mm')}`
+          });
+          showToast('Backup compartilhado!');
+          return;
+        }
       } catch (err) {
         if ((err as Error).name !== 'AbortError') {
           console.error('Erro ao compartilhar:', err);
+        } else {
+          return; // User cancelled
         }
       }
     }
 
-    // Fallback to download
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Backup exportado com sucesso!');
+    // Fallback to download or if share failed/not requested
+    try {
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Cleanup with a small delay for mobile browsers
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+      
+      showToast('Backup salvo nos Downloads');
+    } catch (err) {
+      console.error('Erro ao exportar:', err);
+      showToast('Erro ao exportar dados', 'error');
+    }
   };
 
   const importData = () => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.json';
+    input.accept = '.json,application/json';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
+      if (!file) {
+        document.body.removeChild(input);
+        return;
+      }
 
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -196,30 +262,70 @@ function AppContent() {
           const content = event.target?.result as string;
           const data = JSON.parse(content);
 
+          // Basic validation
           if (!data.employees || !data.attendance) {
-            throw new Error('Formato de arquivo inválido');
+            throw new Error('Formato de arquivo inválido: dados essenciais ausentes');
           }
+
+          if (!Array.isArray(data.employees) || !Array.isArray(data.attendance)) {
+            throw new Error('Formato de arquivo inválido: estrutura de dados incorreta');
+          }
+
+          const dateLabel = data.exportDate ? format(new Date(data.exportDate), 'dd/MM/yyyy HH:mm') : 'data desconhecida';
 
           setConfirmModal({
             isOpen: true,
             title: 'RESTAURAR BACKUP',
-            message: `Deseja restaurar o backup de ${format(new Date(data.exportDate), 'dd/MM/yyyy HH:mm')}? Isso substituirá todos os dados atuais.`,
+            message: `Deseja restaurar o backup de ${dateLabel}? Isso substituirá todos os dados atuais (colaboradores e registros).`,
             onConfirm: () => {
-              setEmployees(data.employees);
-              setAttendance(data.attendance);
-              showToast('Dados restaurados com sucesso!');
-              setConfirmModal(prev => ({ ...prev, isOpen: false }));
-              setIsSettingsOpen(false);
+              try {
+                setEmployees(data.employees);
+                setAttendance(data.attendance);
+                if (data.userConfig) {
+                  setUserConfig(data.userConfig);
+                }
+                if (data.theme) {
+                  setDarkMode(data.theme === 'dark');
+                }
+                showToast('Dados restaurados com sucesso!');
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                setIsSettingsOpen(false);
+              } catch (err) {
+                showToast('Erro ao aplicar backup', 'error');
+                console.error(err);
+              }
             }
           });
         } catch (err) {
-          showToast('Erro ao importar arquivo', 'error');
+          showToast(err instanceof Error ? err.message : 'Erro ao importar arquivo', 'error');
           console.error(err);
+        } finally {
+          if (document.body.contains(input)) {
+            document.body.removeChild(input);
+          }
         }
       };
+
+      reader.onerror = () => {
+        showToast('Erro ao ler o arquivo', 'error');
+        if (document.body.contains(input)) {
+          document.body.removeChild(input);
+        }
+      };
+
       reader.readAsText(file);
     };
+
     input.click();
+    
+    // Cleanup input if user cancels (though onchange won't fire)
+    // We remove it in onchange/onerror, but if they just close the picker, it stays in DOM.
+    // It's hidden and small, so not a big deal, but let's be clean.
+    setTimeout(() => {
+      if (document.body.contains(input) && !input.files?.length) {
+        // We can't easily know if they cancelled, so we just leave it or remove it after a long timeout
+      }
+    }, 60000);
   };
 
   const clearAllData = async () => {
@@ -245,9 +351,46 @@ function AppContent() {
     });
   };
 
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    
+    // Name validation
+    if (!empForm.name.trim()) {
+      errors.name = 'Nome é obrigatório';
+    } else if (empForm.name.trim().length < 3) {
+      errors.name = 'Nome deve ter pelo menos 3 caracteres';
+    }
+    
+    // Daily rate validation
+    if (!empForm.dailyRate) {
+      errors.dailyRate = 'Valor da diária é obrigatório';
+    } else {
+      const rate = parseFloat(empForm.dailyRate.replace(',', '.'));
+      if (isNaN(rate) || rate <= 0) {
+        errors.dailyRate = 'Valor da diária deve ser maior que zero';
+      }
+    }
+
+    // Bank details validation (if one is filled, others are recommended)
+    if (empForm.bankName || empForm.bankAgency || empForm.bankAccount) {
+      if (!empForm.bankName) errors.bankName = 'Informe o nome do banco';
+      if (!empForm.bankAgency) errors.bankAgency = 'Informe a agência';
+      if (!empForm.bankAccount) errors.bankAccount = 'Informe a conta';
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const addEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !empForm.name.trim() || isSubmitting) return;
+    if (!user || isSubmitting) return;
+    
+    if (!validateForm()) {
+      showToast('Por favor, corrija os erros no formulário', 'error');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const rate = parseFloat(empForm.dailyRate.replace(',', '.'));
@@ -260,13 +403,15 @@ function AppContent() {
         bankName: empForm.bankName.trim(),
         bankAgency: empForm.bankAgency.trim(),
         bankAccount: empForm.bankAccount.trim(),
+        paymentNote: empForm.paymentNote.trim(),
         project: empForm.project.trim(),
         ownerId: user.uid,
         createdAt: new Date().toISOString()
       };
       setEmployees(prev => [...prev, newEmployee]);
       showToast('Funcionário cadastrado!');
-      setEmpForm({ name: '', role: '', dailyRate: '', pix: '', bankName: '', bankAgency: '', bankAccount: '', project: '' });
+      setEmpForm({ name: '', role: '', dailyRate: '', pix: '', bankName: '', bankAgency: '', bankAccount: '', project: '', paymentNote: '' });
+      setFormErrors({});
       setIsAddEmployeeOpen(false);
     } catch (err) { 
       showToast('Erro ao cadastrar', 'error'); 
@@ -278,10 +423,11 @@ function AppContent() {
   const openEditModal = () => {
     const emp = employees.find(e => e.id === selectedEmployeeId);
     if (!emp) return;
+    setFormErrors({});
     setEmpForm({
       name: emp.name, role: emp.role || '', dailyRate: emp.dailyRate?.toString() || '',
       pix: emp.pixKey || '', bankName: emp.bankName || '', bankAgency: emp.bankAgency || '', bankAccount: emp.bankAccount || '',
-      project: emp.project || ''
+      project: emp.project || '', paymentNote: emp.paymentNote || ''
     });
     setIsEditEmployeeOpen(true);
   };
@@ -289,6 +435,12 @@ function AppContent() {
   const updateEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !selectedEmployeeId || isSubmitting) return;
+
+    if (!validateForm()) {
+      showToast('Por favor, corrija os erros no formulário', 'error');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const rate = parseFloat(empForm.dailyRate.replace(',', '.'));
@@ -303,18 +455,144 @@ function AppContent() {
             bankName: empForm.bankName.trim(),
             bankAgency: empForm.bankAgency.trim(),
             bankAccount: empForm.bankAccount.trim(),
+            paymentNote: empForm.paymentNote.trim(),
             project: empForm.project.trim(),
           };
         }
         return emp;
       }));
       showToast('Dados atualizados!');
+      setFormErrors({});
       setIsEditEmployeeOpen(false);
     } catch (err) { 
       showToast('Erro ao atualizar', 'error'); 
       console.error(err);
     }
     finally { setIsSubmitting(false); }
+  };
+
+  useEffect(() => {
+    if (!userConfig?.notificationsEnabled) return;
+
+    const checkNotifications = () => {
+      const now = new Date();
+      const currentTime = format(now, 'HH:mm');
+      const today = format(now, 'yyyy-MM-dd');
+
+      if (currentTime === (userConfig.notificationTime || '07:00') && lastNotificationDate !== today) {
+        if (Notification.permission === 'granted') {
+          navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification('Ponto Fácil', {
+              body: 'Bom dia! Não esqueça de registrar seu ponto hoje.',
+              icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png',
+              badge: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png',
+              tag: 'daily-reminder',
+              ...({ vibrate: [200, 100, 200] } as any)
+            });
+          });
+          setLastNotificationDate(today);
+        }
+      }
+    };
+
+    const interval = setInterval(checkNotifications, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, [userConfig?.notificationsEnabled, userConfig?.notificationTime, lastNotificationDate]);
+
+  const requestNotificationPermission = async () => {
+    console.log('Solicitando permissão de notificação...');
+    if (!('Notification' in window)) {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      console.log('Notificações não suportadas. iOS:', isIOS);
+      if (isIOS) {
+        showToast('No iOS, instale o app na tela de início para usar notificações.', 'error');
+      } else {
+        showToast('Seu navegador não suporta notificações', 'error');
+      }
+      return;
+    }
+
+    try {
+      const permission = await new Promise<NotificationPermission>((resolve) => {
+        try {
+          const result = Notification.requestPermission(resolve);
+          if (result && typeof (result as any).then === 'function') {
+            (result as any).then(resolve);
+          }
+        } catch (e) {
+          console.error('Erro ao chamar requestPermission:', e);
+          resolve('default');
+        }
+      });
+
+      console.log('Permissão de notificação:', permission);
+
+      if (permission === 'granted') {
+        setUserConfig(prev => ({ 
+          ...prev!, 
+          notificationsEnabled: true,
+          notificationTime: prev?.notificationTime || '07:00'
+        }));
+        showToast('Notificações ativadas!');
+      } else if (permission === 'denied') {
+        showToast('Permissão negada. Verifique as configurações do navegador.', 'error');
+      } else {
+        showToast('Permissão não concedida', 'error');
+      }
+    } catch (error) {
+      console.error('Erro ao solicitar permissão:', error);
+      showToast('Erro ao solicitar permissão', 'error');
+    }
+  };
+
+  const testNotification = () => {
+    if (!('serviceWorker' in navigator)) {
+      showToast('Seu navegador não suporta notificações em segundo plano', 'error');
+      return;
+    }
+
+    if (typeof Notification === 'undefined') {
+      showToast('Seu dispositivo não suporta notificações', 'error');
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      navigator.serviceWorker.ready.then(registration => {
+        registration.showNotification('Ponto Fácil', {
+          body: 'Esta é uma notificação de teste!',
+          icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png',
+          ...({ vibrate: [200, 100, 200] } as any)
+        });
+      }).catch(err => {
+        console.error('Erro no Service Worker:', err);
+        showToast('Erro ao acessar o sistema de notificações', 'error');
+      });
+    } else {
+      showToast('Ative as notificações primeiro', 'error');
+    }
+  };
+
+  const toggleNotifications = () => {
+    if (userConfig?.notificationsEnabled) {
+      setUserConfig(prev => ({ ...prev!, notificationsEnabled: false }));
+      showToast('Notificações desativadas');
+    } else {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        setUserConfig(prev => ({ 
+          ...prev!, 
+          notificationsEnabled: true,
+          notificationTime: prev?.notificationTime || '07:00'
+        }));
+        showToast('Notificações ativadas!');
+      } else {
+        requestNotificationPermission();
+      }
+    }
+  };
+
+  const updateNotificationTime = (time: string) => {
+    setUserConfig(prev => ({ ...prev!, notificationTime: time }));
+    showToast(`Lembrete ajustado para ${time}`);
   };
 
   const deleteEmployee = async (id: string) => {
@@ -451,6 +729,11 @@ function AppContent() {
     docPdf.text(`Nome: ${t(emp.name)}`, 20, 65);
     docPdf.text(`Cargo: ${t(emp.role) || 'Nao informado'}`, 20, 72);
     docPdf.text(`Obra/Projeto: ${t(emp.project) || 'Nao informado'}`, 20, 79);
+    if (emp.paymentNote) {
+      docPdf.setFontSize(8);
+      docPdf.text(`Obs Pagamento: ${t(emp.paymentNote)}`, 20, 84);
+      docPdf.setFontSize(10);
+    }
     
     docPdf.text(`Mes de Referencia: ${t(format(currentMonth, 'MMMM yyyy', { locale: ptBR }).toUpperCase())}`, 120, 65);
     docPdf.text(`Valor da Diaria: R$ ${rate.toFixed(2)}`, 120, 72);
@@ -517,31 +800,46 @@ function AppContent() {
     const fileName = `PontoFacil_${emp.name.replace(/\s+/g, '_')}_${monthStr}.pdf`;
 
     // Mobile-first approach: Try Web Share API
-    if (navigator.share && navigator.canShare) {
-      const pdfBlob = docPdf.output('blob');
-      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-      
-      if (navigator.canShare({ files: [file] })) {
-        try {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (isMobile && navigator.share) {
+      try {
+        const pdfBlob = docPdf.output('blob');
+        const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+        
+        // Check if sharing files is supported
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
             files: [file],
             title: 'Relatório de Ponto',
-            text: `Relatório de Ponto - ${emp.name} - ${monthStr}`,
+            text: `Relatório de Ponto - ${t(emp.name)} - ${monthStr}`,
           });
           showToast('Relatório compartilhado!');
           return;
-        } catch (error) {
-          if ((error as any).name !== 'AbortError') {
-            console.error('Erro ao compartilhar:', error);
-          } else {
-            return;
-          }
         }
+      } catch (error) {
+        // If user cancelled, don't show error
+        if ((error as any).name === 'AbortError') return;
+        console.error('Erro ao compartilhar:', error);
       }
     }
 
-    docPdf.save(fileName);
-    showToast('Relatório salvo em Downloads');
+    // Fallback for desktop or when share fails
+    try {
+      docPdf.save(fileName);
+      showToast('Relatório salvo em Downloads');
+    } catch (error) {
+      console.error('Erro ao salvar PDF:', error);
+      // Last resort for mobile: open in new tab
+      try {
+        const pdfBlob = docPdf.output('blob');
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        window.open(pdfUrl, '_blank');
+        showToast('Relatório aberto em nova aba');
+      } catch (e) {
+        showToast('Erro ao gerar relatório', 'error');
+      }
+    }
   };
 
   if (loading) return (
@@ -552,6 +850,66 @@ function AppContent() {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row overflow-hidden bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+      <AnimatePresence>
+        {isLocked && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-6 overflow-hidden"
+          >
+            <div className="w-full max-w-sm space-y-8 text-center">
+              <div className="space-y-4">
+                <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center mx-auto shadow-xl shadow-indigo-500/20">
+                  <Lock size={40} className="text-white" />
+                </div>
+                <div className="space-y-1">
+                  <h2 className="text-3xl font-black tracking-tighter italic">App Bloqueado</h2>
+                  <p className="text-slate-500 font-medium">Insira seu PIN para continuar</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleUnlock} className="space-y-6">
+                <div className="flex justify-center gap-3">
+                  <input 
+                    type="password"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoFocus
+                    value={pinInput}
+                    onChange={e => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      setPinInput(val);
+                      // Auto-submit if length matches
+                      if (val.length === userConfig?.pin?.length) {
+                        // Small delay to let the last digit be processed
+                        setTimeout(() => {
+                          if (val === userConfig?.pin) {
+                            setIsLocked(false);
+                            setPinInput('');
+                            showToast('Acesso liberado', 'success');
+                          } else {
+                            setPinInput('');
+                            showToast('PIN incorreto', 'error');
+                          }
+                        }, 100);
+                      }
+                    }}
+                    className="w-full h-16 text-center text-3xl font-black tracking-[1em] bg-white dark:bg-slate-900 rounded-2xl border-none shadow-sm focus:ring-2 focus:ring-indigo-500 transition-all"
+                    maxLength={6}
+                    placeholder="••••"
+                  />
+                </div>
+                
+                <Button type="submit" className="w-full h-14 rounded-2xl font-black italic text-lg">
+                  Desbloquear
+                </Button>
+              </form>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <ConfirmModal
         isOpen={confirmModal.isOpen}
         title={confirmModal.title}
@@ -588,7 +946,8 @@ function AppContent() {
                 type, 
                 location: location?.trim() || undefined,
                 monthYear: format(attendanceModal.date, 'yyyy-MM'), 
-                ownerId: user.uid 
+                ownerId: user.uid,
+                timestamp: new Date().toISOString()
               };
               setAttendance(prev => {
                 const filtered = prev.filter(att => att.id !== recordId);
@@ -652,10 +1011,21 @@ function AppContent() {
                 isInstallable={!!deferredPrompt}
               />
             )}
-            {activeView === 'team' && <Team employees={employees} setIsAddEmployeeOpen={setIsAddEmployeeOpen} setSelectedEmployeeId={setSelectedEmployeeId} openEditModal={openEditModal} deleteEmployee={deleteEmployee} setActiveView={setActiveView} />}
+            {activeView === 'team' && (
+              <Team 
+                employees={employees} 
+                attendance={attendance}
+                setIsAddEmployeeOpen={setIsAddEmployeeOpen} 
+                setSelectedEmployeeId={setSelectedEmployeeId} 
+                openEditModal={openEditModal} 
+                deleteEmployee={deleteEmployee} 
+                setActiveView={setActiveView} 
+              />
+            )}
             {activeView === 'calendar' && (
               <CalendarView 
                 employees={employees} 
+                attendance={attendance}
                 selectedEmployeeId={selectedEmployeeId} 
                 setSelectedEmployeeId={setSelectedEmployeeId} 
                 currentMonth={currentMonth} 
@@ -769,6 +1139,56 @@ function AppContent() {
                 </div>
 
                 <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl space-y-4">
+                  <div 
+                    className="flex items-center justify-between cursor-pointer select-none"
+                    onClick={toggleNotifications}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm">
+                        {userConfig?.notificationsEnabled ? (
+                          <Bell size={16} className="text-indigo-500" />
+                        ) : (
+                          <BellOff size={16} className="text-slate-400" />
+                        )}
+                      </div>
+                      <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Lembrete Diário</span>
+                    </div>
+                    <button 
+                      type="button"
+                      className={cn(
+                        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0", 
+                        userConfig?.notificationsEnabled ? "bg-indigo-600" : "bg-slate-300"
+                      )}
+                    >
+                      <span className={cn(
+                        "inline-block h-4 w-4 transform rounded-full bg-white transition-transform", 
+                        userConfig?.notificationsEnabled ? "translate-x-6" : "translate-x-1"
+                      )} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                        <ClockIcon size={14} />
+                        Horário do Lembrete
+                      </div>
+                      <input 
+                        type="time" 
+                        value={userConfig?.notificationTime || '07:00'} 
+                        onChange={e => updateNotificationTime(e.target.value)}
+                        className="bg-white dark:bg-slate-800 border-none rounded-lg text-xs font-black p-1 px-2 focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    {userConfig?.notificationsEnabled && (
+                      <Button variant="ghost" onClick={testNotification} className="w-full h-9 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white dark:bg-slate-800 shadow-sm">
+                        Testar Notificação
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl space-y-4">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm">
                       <Lock size={16} className="text-slate-600 dark:text-slate-400" />
@@ -777,19 +1197,33 @@ function AppContent() {
                   </div>
                   
                   {userConfig?.pin ? (
-                    <Button variant="ghost" onClick={removePin} className="w-full h-11 rounded-xl text-rose-600 font-bold bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100">
-                      Desativar PIN
-                    </Button>
+                    <div className="space-y-2">
+                      <Button 
+                        onClick={() => {
+                          setIsLocked(true);
+                          setIsSettingsOpen(false);
+                        }} 
+                        className="w-full h-11 rounded-xl font-bold gap-2"
+                      >
+                        <Lock size={16} />
+                        Bloquear Agora
+                      </Button>
+                      <Button variant="ghost" onClick={removePin} className="w-full h-11 rounded-xl text-rose-600 font-bold bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100">
+                        Desativar PIN
+                      </Button>
+                    </div>
                   ) : (
                     isSettingPin ? (
                       <div className="flex gap-2">
                         <input 
                           type="password" 
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={newPin} 
                           onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))} 
                           className="pro-input text-center h-11 bg-white dark:bg-slate-800 border-none rounded-xl font-black tracking-[0.5em]" 
-                          maxLength={4} 
-                          placeholder="0000"
+                          maxLength={6} 
+                          placeholder="••••"
                         />
                         <Button onClick={savePin} className="h-11 px-6 rounded-xl">Salvar</Button>
                       </div>
@@ -861,22 +1295,111 @@ function AppContent() {
               <form onSubmit={isAddEmployeeOpen ? addEmployee : updateEmployee} className="space-y-4 overflow-y-auto pr-1 -mr-1 custom-scrollbar">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Informações Básicas</label>
-                  <input type="text" value={empForm.name} onChange={e => setEmpForm({...empForm, name: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Nome Completo" required />
+                  <div className="space-y-1">
+                    <input 
+                      type="text" 
+                      value={empForm.name} 
+                      onChange={e => {
+                        setEmpForm({...empForm, name: e.target.value});
+                        if (formErrors.name) setFormErrors(prev => ({ ...prev, name: '' }));
+                      }} 
+                      className={cn(
+                        "pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold",
+                        formErrors.name && "ring-2 ring-rose-500"
+                      )} 
+                      placeholder="Nome Completo" 
+                    />
+                    {formErrors.name && <p className="text-[10px] font-bold text-rose-500 px-1">{formErrors.name}</p>}
+                  </div>
+                  
                   <input type="text" value={empForm.project} onChange={e => setEmpForm({...empForm, project: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Nome da Obra" />
                   <input type="text" value={empForm.role} onChange={e => setEmpForm({...empForm, role: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Cargo / Função" />
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
-                    <input type="number" step="0.01" value={empForm.dailyRate} onChange={e => setEmpForm({...empForm, dailyRate: e.target.value})} className="pro-input h-12 pl-10 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Valor da Diária" />
+                  
+                  <div className="space-y-1">
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
+                      <input 
+                        type="text" 
+                        inputMode="decimal"
+                        value={empForm.dailyRate} 
+                        onChange={e => {
+                          setEmpForm({...empForm, dailyRate: e.target.value});
+                          if (formErrors.dailyRate) setFormErrors(prev => ({ ...prev, dailyRate: '' }));
+                        }} 
+                        className={cn(
+                          "pro-input h-12 pl-10 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold",
+                          formErrors.dailyRate && "ring-2 ring-rose-500"
+                        )} 
+                        placeholder="Valor da Diária" 
+                      />
+                    </div>
+                    {formErrors.dailyRate && <p className="text-[10px] font-bold text-rose-500 px-1">{formErrors.dailyRate}</p>}
                   </div>
                 </div>
 
                 <div className="pt-2 space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Dados Bancários / PIX</label>
-                  <input type="text" value={empForm.pix} onChange={e => setEmpForm({...empForm, pix: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Chave PIX" />
-                  <input type="text" value={empForm.bankName} onChange={e => setEmpForm({...empForm, bankName: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Nome do Banco" />
+                  <div className="space-y-1">
+                    <input type="text" value={empForm.pix} onChange={e => setEmpForm({...empForm, pix: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Chave PIX" />
+                    <input 
+                      type="text" 
+                      value={empForm.paymentNote} 
+                      onChange={e => setEmpForm({...empForm, paymentNote: e.target.value})} 
+                      className="pro-input h-10 bg-slate-100 dark:bg-slate-800/50 border-none rounded-xl font-medium text-xs" 
+                      placeholder="Observação / Nome do Titular (se for de terceiros)" 
+                    />
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <input 
+                      type="text" 
+                      value={empForm.bankName} 
+                      onChange={e => {
+                        setEmpForm({...empForm, bankName: e.target.value});
+                        if (formErrors.bankName) setFormErrors(prev => ({ ...prev, bankName: '' }));
+                      }} 
+                      className={cn(
+                        "pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold",
+                        formErrors.bankName && "ring-2 ring-rose-500"
+                      )} 
+                      placeholder="Nome do Banco" 
+                    />
+                    {formErrors.bankName && <p className="text-[10px] font-bold text-rose-500 px-1">{formErrors.bankName}</p>}
+                  </div>
+
                   <div className="grid grid-cols-2 gap-2">
-                    <input type="text" value={empForm.bankAgency} onChange={e => setEmpForm({...empForm, bankAgency: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Agência" />
-                    <input type="text" value={empForm.bankAccount} onChange={e => setEmpForm({...empForm, bankAccount: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Conta" />
+                    <div className="space-y-1">
+                      <input 
+                        type="text" 
+                        value={empForm.bankAgency} 
+                        onChange={e => {
+                          setEmpForm({...empForm, bankAgency: e.target.value});
+                          if (formErrors.bankAgency) setFormErrors(prev => ({ ...prev, bankAgency: '' }));
+                        }} 
+                        className={cn(
+                          "pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold",
+                          formErrors.bankAgency && "ring-2 ring-rose-500"
+                        )} 
+                        placeholder="Agência" 
+                      />
+                      {formErrors.bankAgency && <p className="text-[10px] font-bold text-rose-500 px-1">{formErrors.bankAgency}</p>}
+                    </div>
+                    <div className="space-y-1">
+                      <input 
+                        type="text" 
+                        value={empForm.bankAccount} 
+                        onChange={e => {
+                          setEmpForm({...empForm, bankAccount: e.target.value});
+                          if (formErrors.bankAccount) setFormErrors(prev => ({ ...prev, bankAccount: '' }));
+                        }} 
+                        className={cn(
+                          "pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold",
+                          formErrors.bankAccount && "ring-2 ring-rose-500"
+                        )} 
+                        placeholder="Conta" 
+                      />
+                      {formErrors.bankAccount && <p className="text-[10px] font-bold text-rose-500 px-1">{formErrors.bankAccount}</p>}
+                    </div>
                   </div>
                 </div>
 
