@@ -143,7 +143,8 @@ function AppContent() {
     employeeId: string | null;
     currentType: 'D' | 'M' | 'F' | null;
     currentLocation?: string;
-  }>({ isOpen: false, date: null, employeeId: null, currentType: null, currentLocation: '' });
+    currentCustomRate?: number;
+  }>({ isOpen: false, date: null, employeeId: null, currentType: null, currentLocation: '', currentCustomRate: undefined });
 
   // Form states
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -652,14 +653,25 @@ function AppContent() {
   };
 
   const getSummary = (employeeId: string, monthYear?: string) => {
+    const emp = employees.find(e => e.id === employeeId);
     const records = attendance.filter(a => 
       a.employeeId === employeeId && (!monthYear || a.monthYear === monthYear)
     );
+    const defaultRate = emp?.dailyRate || 0;
+    
+    let totalValue = 0;
+    records.forEach(r => {
+      const rate = r.customRate !== undefined ? r.customRate : defaultRate;
+      if (r.type === 'D') totalValue += rate;
+      if (r.type === 'M') totalValue += (rate / 2);
+    });
+
     return {
       diarias: records.filter(r => r.type === 'D').length,
       meias: records.filter(r => r.type === 'M').length,
       faltas: records.filter(r => r.type === 'F').length,
-      total: records.filter(r => r.type === 'D').length + (records.filter(r => r.type === 'M').length * 0.5)
+      total: records.filter(r => r.type === 'D').length + (records.filter(r => r.type === 'M').length * 0.5),
+      totalValue
     };
   };
 
@@ -677,7 +689,7 @@ function AppContent() {
     const monthStr = format(currentMonth, 'yyyy-MM');
     const summary = getSummary(emp.id, monthStr);
     const rate = emp.dailyRate || 0;
-    const total = (summary.diarias * rate) + (summary.meias * (rate / 2));
+    const total = summary.totalValue;
     
     const docPdf = new jsPDF({
       orientation: 'p',
@@ -748,13 +760,14 @@ function AppContent() {
         const record = attendance.find(a => a.employeeId === emp.id && a.date === format(d, 'yyyy-MM-dd'));
         if (!record) return null;
         
+        const currentRate = record.customRate !== undefined ? record.customRate : rate;
         let val = 0;
         let typeLabel = '';
         if (record.type === 'D') {
-          val = rate;
+          val = currentRate;
           typeLabel = 'DIARIA INTEIRA';
         } else if (record.type === 'M') {
-          val = rate / 2;
+          val = currentRate / 2;
           typeLabel = 'MEIA DIARIA';
         } else {
           typeLabel = 'FALTA';
@@ -803,6 +816,7 @@ function AppContent() {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     if (isMobile && navigator.share) {
+      showToast('Preparando para compartilhar...');
       try {
         const pdfBlob = docPdf.output('blob');
         const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
@@ -826,19 +840,23 @@ function AppContent() {
 
     // Fallback for desktop or when share fails
     try {
-      docPdf.save(fileName);
+      // Robust download for mobile: hidden link
+      const pdfBlob = docPdf.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Cleanup URL
+      setTimeout(() => URL.revokeObjectURL(pdfUrl), 100);
+      
       showToast('Relatório salvo em Downloads');
     } catch (error) {
       console.error('Erro ao salvar PDF:', error);
-      // Last resort for mobile: open in new tab
-      try {
-        const pdfBlob = docPdf.output('blob');
-        const pdfUrl = URL.createObjectURL(pdfBlob);
-        window.open(pdfUrl, '_blank');
-        showToast('Relatório aberto em nova aba');
-      } catch (e) {
-        showToast('Erro ao gerar relatório', 'error');
-      }
+      showToast('Erro ao gerar relatório', 'error');
     }
   };
 
@@ -930,7 +948,7 @@ function AppContent() {
       <AttendanceModal 
         isOpen={attendanceModal.isOpen} 
         onClose={() => setAttendanceModal(p => ({ ...p, isOpen: false }))} 
-        onSelect={async (type, location) => {
+        onSelect={async (type, location, customRate) => {
           if (!user || !attendanceModal.employeeId || !attendanceModal.date) return;
           const dateStr = format(attendanceModal.date, 'yyyy-MM-dd');
           const recordId = `${attendanceModal.employeeId}_${dateStr}`;
@@ -945,6 +963,7 @@ function AppContent() {
                 date: dateStr, 
                 type, 
                 location: location?.trim() || undefined,
+                customRate,
                 monthYear: format(attendanceModal.date, 'yyyy-MM'), 
                 ownerId: user.uid,
                 timestamp: new Date().toISOString()
@@ -964,6 +983,8 @@ function AppContent() {
         date={attendanceModal.date || new Date()} 
         currentType={attendanceModal.currentType}
         currentLocation={attendanceModal.currentLocation}
+        currentCustomRate={attendanceModal.currentCustomRate}
+        defaultRate={employees.find(e => e.id === attendanceModal.employeeId)?.dailyRate}
       />
 
       <div className="hidden lg:block">
@@ -1033,7 +1054,7 @@ function AppContent() {
                 daysInMonth={daysInMonth} 
                 getAttendanceForDay={(id, d) => {
                   const record = attendance.find(a => a.employeeId === id && a.date === format(d, 'yyyy-MM-dd'));
-                  return { type: record?.type, location: record?.location };
+                  return { type: record?.type, location: record?.location, customRate: record?.customRate };
                 }} 
                 toggleAttendance={(id, d, t) => {
                   const record = attendance.find(a => a.employeeId === id && a.date === format(d, 'yyyy-MM-dd'));
@@ -1042,7 +1063,8 @@ function AppContent() {
                     date: d, 
                     employeeId: id, 
                     currentType: t,
-                    currentLocation: record?.location
+                    currentLocation: record?.location,
+                    currentCustomRate: record?.customRate
                   });
                 }} 
                 generatePDF={generatePDF} 

@@ -19,7 +19,7 @@ interface CalendarViewProps {
   currentMonth: Date;
   setCurrentMonth: (date: Date) => void;
   daysInMonth: Date[];
-  getAttendanceForDay: (id: string, d: Date) => { type: 'D' | 'M' | 'F' | undefined; location?: string };
+  getAttendanceForDay: (id: string, d: Date) => { type: 'D' | 'M' | 'F' | undefined; location?: string; customRate?: number };
   toggleAttendance: (id: string, d: Date, t: 'D' | 'M' | 'F' | null) => void;
   generatePDF: () => void;
 }
@@ -205,9 +205,52 @@ export const CalendarView = ({
                   <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm">
                     <User size={32} className="text-slate-900 dark:text-white" />
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <h2 className="text-2xl font-black tracking-tighter italic">{selectedEmployee.name}</h2>
                     <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Registros de {format(currentMonth, 'MMMM', { locale: ptBR })}</p>
+                  </div>
+                  <Button 
+                    onClick={() => toggleAttendance(selectedEmployee.id, new Date(), getAttendanceForDay(selectedEmployee.id, new Date()).type || null)}
+                    className="rounded-2xl h-12 px-6 gap-2 font-black italic tracking-tight bg-emerald-500 hover:bg-emerald-600 text-white border-none shadow-lg shadow-emerald-500/20"
+                  >
+                    <CheckCircle2 size={20} />
+                    <span className="hidden sm:inline">Marcar Hoje</span>
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Diárias Inteiras</p>
+                    <p className="text-2xl font-black italic text-emerald-500">
+                      {daysInMonth.filter(d => getAttendanceForDay(selectedEmployee.id, d).type === 'D').length}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Meias Diárias</p>
+                    <p className="text-2xl font-black italic text-amber-500">
+                      {daysInMonth.filter(d => getAttendanceForDay(selectedEmployee.id, d).type === 'M').length}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Faltas</p>
+                    <p className="text-2xl font-black italic text-rose-500">
+                      {daysInMonth.filter(d => getAttendanceForDay(selectedEmployee.id, d).type === 'F').length}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-slate-900 dark:bg-white shadow-sm border border-transparent">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Total a Receber</p>
+                    <p className="text-2xl font-black italic text-white dark:text-slate-900">
+                      R$ {(() => {
+                        let total = 0;
+                        daysInMonth.forEach(day => {
+                          const att = getAttendanceForDay(selectedEmployee.id, day);
+                          const rate = att.customRate !== undefined ? att.customRate : (selectedEmployee.dailyRate || 0);
+                          if (att.type === 'D') total += rate;
+                          if (att.type === 'M') total += (rate / 2);
+                        });
+                        return total.toFixed(2);
+                      })()}
+                    </p>
                   </div>
                 </div>
 

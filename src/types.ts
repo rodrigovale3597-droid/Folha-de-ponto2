@@ -22,6 +22,7 @@ export interface AttendanceRecord {
   monthYear: string; // YYYY-MM
   ownerId: string;
   timestamp?: string; // ISO string for exact time of marking
+  customRate?: number; // Optional custom daily rate for this specific record
 }
 
 export interface UserConfig {

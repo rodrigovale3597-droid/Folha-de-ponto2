@@ -7,20 +7,33 @@ import { Button, Card, cn } from './UI';
 interface AttendanceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (type: 'D' | 'M' | 'F' | null, location?: string) => void;
+  onSelect: (type: 'D' | 'M' | 'F' | null, location?: string, customRate?: number) => void;
   date: Date;
   currentType: 'D' | 'M' | 'F' | null;
   currentLocation?: string;
+  currentCustomRate?: number;
+  defaultRate?: number;
 }
 
-export const AttendanceModal = ({ isOpen, onClose, onSelect, date, currentType, currentLocation }: AttendanceModalProps) => {
+export const AttendanceModal = ({ 
+  isOpen, onClose, onSelect, date, currentType, currentLocation, currentCustomRate, defaultRate 
+}: AttendanceModalProps) => {
   const [location, setLocation] = React.useState(currentLocation || '');
+  const [customRate, setCustomRate] = React.useState<string>(currentCustomRate?.toString() || '');
 
   React.useEffect(() => {
-    if (isOpen) setLocation(currentLocation || '');
-  }, [isOpen, currentLocation]);
+    if (isOpen) {
+      setLocation(currentLocation || '');
+      setCustomRate(currentCustomRate?.toString() || '');
+    }
+  }, [isOpen, currentLocation, currentCustomRate]);
 
   if (!isOpen) return null;
+
+  const handleSelect = (type: 'D' | 'M' | 'F' | null) => {
+    const rate = customRate ? parseFloat(customRate) : undefined;
+    onSelect(type, location, rate);
+  };
 
   const options = [
     { id: 'D', label: 'Diária Inteira', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
@@ -44,21 +57,33 @@ export const AttendanceModal = ({ isOpen, onClose, onSelect, date, currentType, 
         </div>
 
         <div className="grid gap-3">
-          <div className="space-y-1 mb-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Local / Obra (Opcional)</label>
-            <input 
-              type="text" 
-              value={location} 
-              onChange={e => setLocation(e.target.value)} 
-              placeholder="Ex: Obra Centro, Outro Trabalho..."
-              className="w-full h-12 px-4 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-800 transition-all"
-            />
+          <div className="grid grid-cols-2 gap-3 mb-2">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Local / Obra</label>
+              <input 
+                type="text" 
+                value={location} 
+                onChange={e => setLocation(e.target.value)} 
+                placeholder="Ex: Obra Centro..."
+                className="w-full h-12 px-4 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-800 transition-all"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Valor Diária (R$)</label>
+              <input 
+                type="number" 
+                value={customRate} 
+                onChange={e => setCustomRate(e.target.value)} 
+                placeholder={defaultRate ? `Padrão: ${defaultRate}` : '0.00'}
+                className="w-full h-12 px-4 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-800 transition-all"
+              />
+            </div>
           </div>
 
           {options.map((opt) => (
             <button
               key={opt.id}
-              onClick={() => onSelect(opt.id, location)}
+              onClick={() => handleSelect(opt.id)}
               className={cn(
                 "flex items-center justify-between p-4 rounded-2xl transition-all border-2",
                 currentType === opt.id 

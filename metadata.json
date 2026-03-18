@@ -1,5 +1,5 @@
 {
   "name": "PontoFácil",
   "description": "Sistema simplificado de gestão de ponto e pagamentos para colaboradores.",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["web-share"]
 }

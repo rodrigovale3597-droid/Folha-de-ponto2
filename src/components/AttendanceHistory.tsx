@@ -44,7 +44,18 @@ export const AttendanceHistory = ({ isOpen, onClose, employee, attendance, month
               </p>
             </div>
           </div>
-          <Button variant="ghost" onClick={onClose} className="rounded-full w-10 h-10 p-0">
+          <div className="text-right hidden sm:block">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total do Mês</p>
+            <p className="text-xl font-black italic text-indigo-600 dark:text-indigo-400">
+              R$ {records.reduce((acc, r) => {
+                const rate = r.customRate !== undefined ? r.customRate : (employee.dailyRate || 0);
+                if (r.type === 'D') return acc + rate;
+                if (r.type === 'M') return acc + (rate / 2);
+                return acc;
+              }, 0).toFixed(2)}
+            </p>
+          </div>
+          <Button variant="ghost" onClick={onClose} className="rounded-full w-10 h-10 p-0 ml-4">
             <X size={20} />
           </Button>
         </div>
@@ -108,6 +119,16 @@ export const AttendanceHistory = ({ isOpen, onClose, employee, attendance, month
                             <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
                               <MapPin size={14} className="text-slate-400" />
                               {record.location}
+                            </div>
+                          </div>
+                        )}
+
+                        {record.customRate !== undefined && (
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Valor Diferenciado:</p>
+                            <div className="flex items-center gap-2 text-sm font-bold text-indigo-600 dark:text-indigo-400">
+                              <CheckCircle2 size={14} />
+                              R$ {record.customRate.toFixed(2)}
                             </div>
                           </div>
                         )}

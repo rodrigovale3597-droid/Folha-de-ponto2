@@ -29,11 +29,10 @@ export const Dashboard = ({
   
   const totalStats = employees.reduce((acc, emp) => {
     const summary = getSummary(emp.id, monthStr);
-    const rate = emp.dailyRate || 0;
     return {
       diarias: acc.diarias + summary.diarias,
       meias: acc.meias + summary.meias,
-      totalValue: acc.totalValue + (summary.diarias * rate) + (summary.meias * (rate / 2))
+      totalValue: acc.totalValue + summary.totalValue
     };
   }, { diarias: 0, meias: 0, totalValue: 0 });
 
@@ -210,8 +209,7 @@ export const Dashboard = ({
           <div className="space-y-3">
             {employees.slice(0, 4).map(emp => {
               const summary = getSummary(emp.id, monthStr);
-              const rate = emp.dailyRate || 0;
-              const total = (summary.diarias * rate) + (summary.meias * (rate / 2));
+              const total = summary.totalValue;
               
               return (
                 <Card key={emp.id} className="p-4 flex items-center justify-between hover:shadow-md transition-shadow">
@@ -236,6 +234,57 @@ export const Dashboard = ({
             {employees.length === 0 && (
               <div className="py-12 text-center bg-slate-50 dark:bg-slate-900 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
                 <p className="text-sm font-bold text-slate-400">Nenhum colaborador cadastrado.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <h3 className="text-lg font-black tracking-tighter italic">Atividades Recentes</h3>
+          </div>
+          <div className="space-y-3">
+            {attendance
+              .slice()
+              .sort((a, b) => {
+                const timeA = a.timestamp ? new Date(a.timestamp).getTime() : new Date(a.date).getTime();
+                const timeB = b.timestamp ? new Date(b.timestamp).getTime() : new Date(b.date).getTime();
+                return timeB - timeA;
+              })
+              .slice(0, 5)
+              .map(record => {
+                const emp = employees.find(e => e.id === record.employeeId);
+                if (!emp) return null;
+                
+                const typeInfo = {
+                  'D': { label: 'Diária', color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
+                  'M': { label: 'Meia', color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10' },
+                  'F': { label: 'Falta', color: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-500/10' }
+                }[record.type];
+
+                return (
+                  <div key={record.id} className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-800">
+                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center font-black italic text-sm", typeInfo.bg, typeInfo.color)}>
+                      {record.type}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black tracking-tight truncate">{emp.name}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">
+                        {format(new Date(record.date), "dd 'de' MMM", { locale: ptBR })} {record.location && `• ${record.location}`}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className={cn("text-[10px] font-black uppercase tracking-widest", typeInfo.color)}>{typeInfo.label}</p>
+                      <p className="text-[10px] font-bold text-slate-400">
+                        {record.timestamp ? format(new Date(record.timestamp), 'HH:mm') : '--:--'}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            {attendance.length === 0 && (
+              <div className="py-12 text-center bg-slate-50 dark:bg-slate-900 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                <p className="text-sm font-bold text-slate-400">Nenhuma atividade recente.</p>
               </div>
             )}
           </div>
