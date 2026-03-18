@@ -22,7 +22,7 @@ export const BottomNav = ({ activeView, setActiveView, onOpenAddEmployee }: Bott
           key={item.id}
           onClick={() => setActiveView(item.id)}
           className={cn(
-            "flex flex-col items-center gap-1 transition-all",
+            "flex flex-col items-center gap-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600 rounded-lg p-1",
             activeView === item.id ? "text-slate-900 dark:text-white" : "text-slate-400"
           )}
         >
@@ -33,7 +33,7 @@ export const BottomNav = ({ activeView, setActiveView, onOpenAddEmployee }: Bott
       
       <button
         onClick={onOpenAddEmployee}
-        className="w-12 h-12 -mt-10 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-xl flex items-center justify-center transition-transform active:scale-90"
+        className="w-12 h-12 -mt-10 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-xl flex items-center justify-center transition-transform active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600"
       >
         <Plus size={24} />
       </button>

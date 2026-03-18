@@ -12,7 +12,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { 
   Settings, X, Download, Sun, Moon, Lock, ChevronLeft, Trash2, Upload, Share2,
-  Bell, BellOff, Clock as ClockIcon
+  Bell, BellOff, Clock as ClockIcon, Smartphone
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
@@ -196,6 +196,9 @@ function AppContent() {
     };
     const fileName = `PontoFacil_Backup_${format(new Date(), 'yyyy-MM-dd_HH-mm')}.json`;
     const jsonString = JSON.stringify(data, null, 2);
+
+    // Record backup date
+    setUserConfig(prev => ({ ...prev!, lastBackupDate: new Date().toISOString() }));
 
     if (share && navigator.share) {
       try {
@@ -591,6 +594,41 @@ function AppContent() {
     }
   };
 
+  // Check for automatic backup
+  useEffect(() => {
+    if (!userConfig?.backupInterval || userConfig.backupInterval === 'off' || !user) return;
+
+    const lastBackup = userConfig.lastBackupDate ? new Date(userConfig.lastBackupDate) : null;
+    const now = new Date();
+    
+    let isDue = false;
+    if (!lastBackup) {
+      isDue = true;
+    } else {
+      const diffMs = now.getTime() - lastBackup.getTime();
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      if (userConfig.backupInterval === 'daily' && diffDays >= 1) isDue = true;
+      if (userConfig.backupInterval === 'weekly' && diffDays >= 7) isDue = true;
+    }
+
+    if (isDue) {
+      const intervalLabel = userConfig.backupInterval === 'daily' ? 'diário' : 'semanal';
+      showToast(`Seu backup ${intervalLabel} está pendente!`, 'success');
+      
+      // If notifications are enabled, show a system notification
+      if (Notification.permission === 'granted') {
+        navigator.serviceWorker.ready.then(registration => {
+          registration.showNotification('Ponto Fácil: Backup Pendente', {
+            body: `Está na hora de fazer o seu backup ${intervalLabel}!`,
+            icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png',
+            tag: 'backup-reminder',
+            ...({ vibrate: [200, 100, 200] } as any)
+          });
+        });
+      }
+    }
+  }, [userConfig?.backupInterval, userConfig?.lastBackupDate, user?.uid]);
+
   const updateNotificationTime = (time: string) => {
     setUserConfig(prev => ({ ...prev!, notificationTime: time }));
     showToast(`Lembrete ajustado para ${time}`);
@@ -676,6 +714,73 @@ function AppContent() {
   };
 
   const daysInMonth = useMemo(() => eachDayOfInterval({ start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) }), [currentMonth]);
+
+  const generateCSV = () => {
+    const emp = employees.find(e => e.id === selectedEmployeeId);
+    if (!emp) return;
+
+    const monthStr = format(currentMonth, 'yyyy-MM');
+    const rate = emp.dailyRate || 0;
+    
+    // CSV Header
+    let csvContent = "Data;Dia;Tipo de Registro;Localizacao;Valor (R$)\n";
+    
+    // CSV Body
+    daysInMonth.forEach(d => {
+      const record = attendance.find(a => a.employeeId === emp.id && a.date === format(d, 'yyyy-MM-dd'));
+      if (!record) return;
+      
+      const currentRate = record.customRate !== undefined ? record.customRate : rate;
+      let val = 0;
+      let typeLabel = '';
+      if (record.type === 'D') {
+        val = currentRate;
+        typeLabel = 'DIARIA INTEIRA';
+      } else if (record.type === 'M') {
+        val = currentRate / 2;
+        typeLabel = 'MEIA DIARIA';
+      } else {
+        typeLabel = 'FALTA';
+      }
+
+      const row = [
+        format(d, 'dd/MM/yyyy'),
+        format(d, 'EEEE', { locale: ptBR }),
+        typeLabel,
+        record.location || '-',
+        val.toFixed(2).replace('.', ',')
+      ];
+      
+      csvContent += row.join(';') + "\n";
+    });
+
+    // Add Summary
+    const summary = getSummary(emp.id, monthStr);
+    csvContent += "\n";
+    csvContent += `RESUMO MENSAL - ${emp.name.toUpperCase()}\n`;
+    csvContent += `Mes de Referencia;${format(currentMonth, 'MMMM yyyy', { locale: ptBR }).toUpperCase()}\n`;
+    csvContent += `Diarias Inteiras;${summary.diarias}\n`;
+    csvContent += `Meias Diarias;${summary.meias}\n`;
+    csvContent += `Faltas;${summary.faltas}\n`;
+    csvContent += `TOTAL A PAGAR;R$ ${summary.totalValue.toFixed(2).replace('.', ',')}\n`;
+
+    // Download
+    try {
+      const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Relatorio_Ponto_${emp.name.replace(/\s+/g, '_')}_${monthStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('Relatório CSV baixado!');
+    } catch (err) {
+      console.error('Erro ao gerar CSV:', err);
+      showToast('Erro ao gerar CSV', 'error');
+    }
+  };
 
   const generatePDF = async () => {
     const emp = employees.find(e => e.id === selectedEmployeeId);
@@ -913,7 +1018,7 @@ function AppContent() {
                         }, 100);
                       }
                     }}
-                    className="w-full h-16 text-center text-3xl font-black tracking-[1em] bg-white dark:bg-slate-900 rounded-2xl border-none shadow-sm focus:ring-2 focus:ring-indigo-500 transition-all"
+                    className="w-full h-16 text-center text-3xl font-black tracking-[1em] bg-white dark:bg-slate-900 rounded-2xl border-none shadow-sm focus:ring-2 focus:ring-indigo-500 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                     maxLength={6}
                     placeholder="••••"
                   />
@@ -1001,7 +1106,7 @@ function AppContent() {
             {activeView !== 'dashboard' && (
               <button 
                 onClick={() => setActiveView('dashboard')} 
-                className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+                className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600"
               >
                 <ChevronLeft size={24} />
               </button>
@@ -1012,7 +1117,7 @@ function AppContent() {
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setIsSettingsOpen(true)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+            <button onClick={() => setIsSettingsOpen(true)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600">
               <Settings size={22} />
             </button>
           </div>
@@ -1068,6 +1173,7 @@ function AppContent() {
                   });
                 }} 
                 generatePDF={generatePDF} 
+                generateCSV={generateCSV}
               />
             )}
           </div>
@@ -1122,7 +1228,16 @@ function AppContent() {
           <Card className="w-full max-w-md p-0 overflow-hidden rounded-3xl border-none">
             <div className="p-6 space-y-6">
               <div className="flex items-center justify-between">
-                <h3 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tighter italic">Perfil</h3>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => setIsSettingsOpen(false)} 
+                    className="rounded-full w-10 h-10 p-0 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    <ChevronLeft size={24} />
+                  </Button>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tighter italic">Configurações</h3>
+                </div>
                 <Button variant="ghost" onClick={() => setIsSettingsOpen(false)} className="rounded-full w-10 h-10 p-0"><X size={20} /></Button>
               </div>
               
@@ -1149,7 +1264,7 @@ function AppContent() {
                   <button 
                     onClick={() => setDarkMode(!darkMode)} 
                     className={cn(
-                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors", 
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400", 
                       darkMode ? "bg-indigo-600" : "bg-slate-300"
                     )}
                   >
@@ -1178,7 +1293,7 @@ function AppContent() {
                     <button 
                       type="button"
                       className={cn(
-                        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0", 
+                        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400", 
                         userConfig?.notificationsEnabled ? "bg-indigo-600" : "bg-slate-300"
                       )}
                     >
@@ -1199,7 +1314,7 @@ function AppContent() {
                         type="time" 
                         value={userConfig?.notificationTime || '07:00'} 
                         onChange={e => updateNotificationTime(e.target.value)}
-                        className="bg-white dark:bg-slate-800 border-none rounded-lg text-xs font-black p-1 px-2 focus:ring-2 focus:ring-indigo-500"
+                        className="bg-white dark:bg-slate-800 border-none rounded-lg text-xs font-black p-1 px-2 focus:ring-2 focus:ring-indigo-500 focus-visible:outline-none"
                       />
                     </div>
                     {userConfig?.notificationsEnabled && (
@@ -1275,6 +1390,33 @@ function AppContent() {
                       Enviar
                     </Button>
                   </div>
+
+                  <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                        <ClockIcon size={14} />
+                        Backup Automático
+                      </div>
+                      <select 
+                        value={userConfig?.backupInterval || 'off'} 
+                        onChange={e => {
+                          const val = e.target.value as any;
+                          setUserConfig(prev => ({ ...prev!, backupInterval: val }));
+                          showToast(`Backup automático: ${val === 'off' ? 'Desativado' : val === 'daily' ? 'Diário' : 'Semanal'}`);
+                        }}
+                        className="bg-white dark:bg-slate-800 border-none rounded-lg text-xs font-black p-1 px-2 focus:ring-2 focus:ring-indigo-500 focus-visible:outline-none"
+                      >
+                        <option value="off">Desativado</option>
+                        <option value="daily">Diário</option>
+                        <option value="weekly">Semanal</option>
+                      </select>
+                    </div>
+                    {userConfig?.lastBackupDate && (
+                      <p className="text-[10px] text-slate-400 text-center">
+                        Último backup: {format(new Date(userConfig.lastBackupDate), "dd/MM/yyyy 'às' HH:mm")}
+                      </p>
+                    )}
+                  </div>
                   
                   <Button variant="ghost" onClick={importData} className="w-full h-11 rounded-xl font-bold gap-2 bg-white dark:bg-slate-800 shadow-sm">
                     <Upload size={16} />
@@ -1282,6 +1424,30 @@ function AppContent() {
                   </Button>
                   
                   <p className="text-[10px] text-slate-400 text-center">Exporte seus dados para segurança ou restaure de um arquivo anterior.</p>
+                </div>
+
+                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm">
+                      <Smartphone size={16} className="text-slate-600 dark:text-slate-400" />
+                    </div>
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Aplicativo Mobile</span>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                      Este app pode ser instalado no seu celular para funcionar como um aplicativo nativo.
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="p-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Android / Chrome</p>
+                        <p className="text-[10px] text-slate-500">Clique em "Instalar Agora" no Dashboard ou use o menu do navegador.</p>
+                      </div>
+                      <div className="p-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">iOS / Safari</p>
+                        <p className="text-[10px] text-slate-500">Toque em "Compartilhar" e depois em "Adicionar à Tela de Início".</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="p-4 bg-rose-50 dark:bg-rose-900/10 rounded-2xl space-y-4">
@@ -1318,26 +1484,34 @@ function AppContent() {
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Informações Básicas</label>
                   <div className="space-y-1">
-                    <input 
-                      type="text" 
-                      value={empForm.name} 
-                      onChange={e => {
-                        setEmpForm({...empForm, name: e.target.value});
-                        if (formErrors.name) setFormErrors(prev => ({ ...prev, name: '' }));
-                      }} 
-                      className={cn(
-                        "pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold",
-                        formErrors.name && "ring-2 ring-rose-500"
-                      )} 
-                      placeholder="Nome Completo" 
-                    />
+                    <label className="text-[10px] font-bold text-slate-400 px-1 uppercase tracking-widest">Nome Completo</label>
+                      <input 
+                        type="text" 
+                        value={empForm.name} 
+                        onChange={e => {
+                          setEmpForm({...empForm, name: e.target.value});
+                          if (formErrors.name) setFormErrors(prev => ({ ...prev, name: '' }));
+                        }} 
+                        className={cn(
+                          "pro-input h-12 bg-slate-50 dark:bg-slate-900 rounded-xl font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600",
+                          formErrors.name ? "border-2 border-rose-500 bg-rose-50/30 dark:bg-rose-500/5" : "border-none"
+                        )} 
+                        placeholder="Ex: João da Silva" 
+                      />
                     {formErrors.name && <p className="text-[10px] font-bold text-rose-500 px-1">{formErrors.name}</p>}
                   </div>
                   
-                  <input type="text" value={empForm.project} onChange={e => setEmpForm({...empForm, project: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Nome da Obra" />
-                  <input type="text" value={empForm.role} onChange={e => setEmpForm({...empForm, role: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Cargo / Função" />
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 px-1 uppercase tracking-widest">Obra ou Projeto</label>
+                    <input type="text" value={empForm.project} onChange={e => setEmpForm({...empForm, project: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600" placeholder="Ex: Edifício Central" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 px-1 uppercase tracking-widest">Cargo / Função</label>
+                    <input type="text" value={empForm.role} onChange={e => setEmpForm({...empForm, role: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600" placeholder="Ex: Pedreiro" />
+                  </div>
                   
                   <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 px-1 uppercase tracking-widest">Valor da Diária</label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
                       <input 
@@ -1349,10 +1523,10 @@ function AppContent() {
                           if (formErrors.dailyRate) setFormErrors(prev => ({ ...prev, dailyRate: '' }));
                         }} 
                         className={cn(
-                          "pro-input h-12 pl-10 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold",
-                          formErrors.dailyRate && "ring-2 ring-rose-500"
+                          "pro-input h-12 pl-10 bg-slate-50 dark:bg-slate-900 rounded-xl font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600",
+                          formErrors.dailyRate ? "border-2 border-rose-500 bg-rose-50/30 dark:bg-rose-500/5" : "border-none"
                         )} 
-                        placeholder="Valor da Diária" 
+                        placeholder="0,00" 
                       />
                     </div>
                     {formErrors.dailyRate && <p className="text-[10px] font-bold text-rose-500 px-1">{formErrors.dailyRate}</p>}
@@ -1362,12 +1536,12 @@ function AppContent() {
                 <div className="pt-2 space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Dados Bancários / PIX</label>
                   <div className="space-y-1">
-                    <input type="text" value={empForm.pix} onChange={e => setEmpForm({...empForm, pix: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold" placeholder="Chave PIX" />
+                    <input type="text" value={empForm.pix} onChange={e => setEmpForm({...empForm, pix: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600" placeholder="Chave PIX" />
                     <input 
                       type="text" 
                       value={empForm.paymentNote} 
                       onChange={e => setEmpForm({...empForm, paymentNote: e.target.value})} 
-                      className="pro-input h-10 bg-slate-100 dark:bg-slate-800/50 border-none rounded-xl font-medium text-xs" 
+                      className="pro-input h-10 bg-slate-100 dark:bg-slate-800/50 border-none rounded-xl font-medium text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600" 
                       placeholder="Observação / Nome do Titular (se for de terceiros)" 
                     />
                   </div>
@@ -1381,7 +1555,7 @@ function AppContent() {
                         if (formErrors.bankName) setFormErrors(prev => ({ ...prev, bankName: '' }));
                       }} 
                       className={cn(
-                        "pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold",
+                        "pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600",
                         formErrors.bankName && "ring-2 ring-rose-500"
                       )} 
                       placeholder="Nome do Banco" 
@@ -1399,7 +1573,7 @@ function AppContent() {
                           if (formErrors.bankAgency) setFormErrors(prev => ({ ...prev, bankAgency: '' }));
                         }} 
                         className={cn(
-                          "pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold",
+                          "pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600",
                           formErrors.bankAgency && "ring-2 ring-rose-500"
                         )} 
                         placeholder="Agência" 
@@ -1415,7 +1589,7 @@ function AppContent() {
                           if (formErrors.bankAccount) setFormErrors(prev => ({ ...prev, bankAccount: '' }));
                         }} 
                         className={cn(
-                          "pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold",
+                          "pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600",
                           formErrors.bankAccount && "ring-2 ring-rose-500"
                         )} 
                         placeholder="Conta" 

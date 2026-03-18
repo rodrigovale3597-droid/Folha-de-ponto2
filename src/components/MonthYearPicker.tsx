@@ -42,7 +42,7 @@ export const MonthYearPicker = ({ isOpen, onClose, currentDate, onChange }: Mont
               <h3 className="text-xl font-black tracking-tighter italic">Escolher Período</h3>
               <button 
                 onClick={onClose}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600"
               >
                 <X size={20} />
               </button>
@@ -51,14 +51,14 @@ export const MonthYearPicker = ({ isOpen, onClose, currentDate, onChange }: Mont
             <div className="flex items-center justify-between mb-6 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl">
               <button 
                 onClick={() => setViewYear(prev => prev - 1)}
-                className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all shadow-sm"
+                className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600"
               >
                 <ChevronLeft size={20} />
               </button>
               <span className="text-lg font-black italic tracking-tighter">{viewYear}</span>
               <button 
                 onClick={() => setViewYear(prev => prev + 1)}
-                className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all shadow-sm"
+                className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600"
               >
                 <ChevronRight size={20} />
               </button>
@@ -72,7 +72,7 @@ export const MonthYearPicker = ({ isOpen, onClose, currentDate, onChange }: Mont
                     key={month}
                     onClick={() => handleMonthSelect(index)}
                     className={`
-                      py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                      py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400
                       ${isSelected 
                         ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' 
                         : 'bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'

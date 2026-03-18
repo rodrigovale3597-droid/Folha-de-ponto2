@@ -85,7 +85,7 @@ export const AttendanceModal = ({
               key={opt.id}
               onClick={() => handleSelect(opt.id)}
               className={cn(
-                "flex items-center justify-between p-4 rounded-2xl transition-all border-2",
+                "flex items-center justify-between p-4 rounded-2xl transition-all border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600",
                 currentType === opt.id 
                   ? "border-slate-900 dark:border-white bg-slate-50 dark:bg-slate-900" 
                   : "border-transparent bg-slate-50 dark:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-700"
@@ -104,7 +104,7 @@ export const AttendanceModal = ({
           {currentType && (
             <button
               onClick={() => onSelect(null)}
-              className="flex items-center justify-center gap-2 p-4 rounded-2xl text-rose-500 font-bold hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+              className="flex items-center justify-center gap-2 p-4 rounded-2xl text-rose-500 font-bold hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
             >
               <Trash2 size={18} />
               Remover Registro

@@ -1,6 +1,7 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { UserPlus, Search, Edit2, Trash2, CreditCard, Banknote, Users, CalendarDays } from 'lucide-react';
+import { motion } from 'motion/react';
 import { Button, Card } from './UI';
 import { Employee, AttendanceRecord } from '../types';
 
@@ -98,62 +99,75 @@ export const Team = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {filtered.map(emp => (
-          <Card key={emp.id} className="overflow-hidden group hover:shadow-xl transition-all duration-300 border-none bg-slate-50 dark:bg-slate-900">
-            <div className="p-6 space-y-6">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center font-black italic text-xl text-slate-900 dark:text-white">
-                    {emp.name.charAt(0)}
-                  </div>
-                  <div>
-                    <h3 className="font-black text-lg tracking-tight leading-none mb-2 flex items-center gap-2 flex-wrap">
-                      {emp.name}
-                      <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-100 dark:border-indigo-500/20">
-                        {emp.role || 'Colaborador'}
-                      </span>
-                    </h3>
-                    {emp.project && (
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        Obra: {emp.project}
-                      </p>
-                    )}
-                    <div className="mt-2 flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-                      <CalendarDays size={14} />
-                      <span className="text-[10px] font-black uppercase tracking-widest">
-                        {attendance.filter(a => a.employeeId === emp.id && a.monthYear === currentMonthStr && a.type === 'D').length} Diárias no mês
-                      </span>
+          <motion.div
+            key={emp.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ y: -4 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 400, damping: 17 }}
+            onClick={() => { setSelectedEmployeeId(emp.id); openEditModal(); }}
+            className="cursor-pointer"
+          >
+            <Card className="overflow-hidden group hover:shadow-xl transition-all duration-300 border-none bg-slate-50 dark:bg-slate-900 h-full">
+              <div className="p-6 space-y-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center font-black italic text-xl text-slate-900 dark:text-white">
+                      {emp.name.charAt(0)}
+                    </div>
+                    <div>
+                      <h3 className="font-black text-lg tracking-tight leading-none mb-2 flex items-center gap-2 flex-wrap">
+                        {emp.name}
+                        <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-100 dark:border-indigo-500/20">
+                          {emp.role || 'Colaborador'}
+                        </span>
+                      </h3>
+                      {emp.project && (
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          Obra: {emp.project}
+                        </p>
+                      )}
+                      <div className="mt-2 flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                        <CalendarDays size={14} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">
+                          {attendance.filter(a => a.employeeId === emp.id && a.monthYear === currentMonthStr && a.type === 'D').length} Diárias no mês
+                        </span>
+                      </div>
                     </div>
                   </div>
+                  <div className="flex gap-1">
+                    <motion.button 
+                      whileTap={{ scale: 0.9 }}
+                      onClick={(e) => { e.stopPropagation(); setSelectedEmployeeId(emp.id); openEditModal(); }}
+                      className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600"
+                    >
+                      <Edit2 size={18} />
+                    </motion.button>
+                    <motion.button 
+                      whileTap={{ scale: 0.9 }}
+                      onClick={(e) => { e.stopPropagation(); deleteEmployee(emp.id); }}
+                      className="p-2 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-xl transition-colors text-slate-400 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                    >
+                      <Trash2 size={18} />
+                    </motion.button>
+                  </div>
                 </div>
-                <div className="flex gap-1">
-                  <button 
-                    onClick={() => { setSelectedEmployeeId(emp.id); openEditModal(); }}
-                    className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  >
-                    <Edit2 size={18} />
-                  </button>
-                  <button 
-                    onClick={() => deleteEmployee(emp.id)}
-                    className="p-2 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-xl transition-colors text-slate-400 hover:text-rose-600"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Diária</p>
-                  <p className="font-black text-slate-900 dark:text-white">R$ {emp.dailyRate?.toFixed(2)}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Diária</p>
+                    <p className="font-black text-slate-900 dark:text-white">R$ {emp.dailyRate?.toFixed(2)}</p>
+                  </div>
+                  <motion.button 
+                    whileTap={{ scale: 0.95 }}
+                    onClick={(e) => { e.stopPropagation(); setSelectedEmployeeId(emp.id); setActiveView('calendar'); }}
+                    className="p-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-lg flex flex-col justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600"
+                  >
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">Ponto</p>
+                    <p className="font-black text-xs">Ver Calendário</p>
+                  </motion.button>
                 </div>
-                <button 
-                  onClick={() => { setSelectedEmployeeId(emp.id); setActiveView('calendar'); }}
-                  className="p-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-lg flex flex-col justify-center"
-                >
-                  <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">Ponto</p>
-                  <p className="font-black text-xs">Ver Calendário</p>
-                </button>
-              </div>
 
               <div className="space-y-3 pt-2">
                 <div className="flex items-center gap-3 text-sm">
@@ -182,6 +196,7 @@ export const Team = ({
               </div>
             </div>
           </Card>
+        </motion.div>
         ))}
 
         {filtered.length === 0 && (

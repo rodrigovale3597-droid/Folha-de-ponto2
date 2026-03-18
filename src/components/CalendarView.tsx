@@ -22,24 +22,27 @@ interface CalendarViewProps {
   getAttendanceForDay: (id: string, d: Date) => { type: 'D' | 'M' | 'F' | undefined; location?: string; customRate?: number };
   toggleAttendance: (id: string, d: Date, t: 'D' | 'M' | 'F' | null) => void;
   generatePDF: () => void;
+  generateCSV: () => void;
 }
 
 export const CalendarView = ({ 
   employees, attendance, selectedEmployeeId, setSelectedEmployeeId, 
   currentMonth, setCurrentMonth, daysInMonth, 
-  getAttendanceForDay, toggleAttendance, generatePDF 
+  getAttendanceForDay, toggleAttendance, generatePDF, generateCSV 
 }: CalendarViewProps) => {
   const [isPickerOpen, setIsPickerOpen] = React.useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = React.useState(false);
-  const [filter, setFilter] = React.useState<'D' | 'M' | 'F' | null>(null);
-  const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
-
+  const [filter, setFilter] = React.useState<'all' | 'D' | 'M' | 'F'>('all');
+  
   const filteredEmployees = React.useMemo(() => {
-    if (!filter) return employees;
-    return employees.filter(emp => 
-      daysInMonth.some(day => getAttendanceForDay(emp.id, day).type === filter)
-    );
-  }, [employees, filter, daysInMonth, getAttendanceForDay]);
+    if (filter === 'all') return employees;
+    return employees.filter(emp => {
+      const att = getAttendanceForDay(emp.id, new Date());
+      return att.type === filter;
+    });
+  }, [employees, filter, getAttendanceForDay]);
+
+  const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
 
   return (
     <div className="space-y-8">
@@ -50,15 +53,15 @@ export const CalendarView = ({
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-slate-100 dark:bg-slate-900 rounded-2xl p-1">
-            <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all"><ChevronLeft size={20} /></button>
+            <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600"><ChevronLeft size={20} /></button>
             <button 
               onClick={() => setIsPickerOpen(true)}
-              className="px-4 font-black text-sm uppercase tracking-widest min-w-[120px] text-center hover:text-indigo-600 transition-colors"
+              className="px-4 font-black text-sm uppercase tracking-widest min-w-[120px] text-center hover:text-indigo-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-lg"
               title="Escolher mês e ano"
             >
               {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
             </button>
-            <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all"><ChevronRight size={20} /></button>
+            <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600"><ChevronRight size={20} /></button>
           </div>
 
           <MonthYearPicker 
@@ -82,6 +85,10 @@ export const CalendarView = ({
                 <Download size={20} />
                 <span className="hidden md:inline">PDF</span>
               </Button>
+              <Button onClick={generateCSV} variant="secondary" className="rounded-2xl h-12 px-4 gap-2">
+                <Download size={20} />
+                <span className="hidden md:inline">CSV</span>
+              </Button>
             </div>
           )}
         </div>
@@ -99,57 +106,21 @@ export const CalendarView = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-1 space-y-6">
-          <div className="space-y-3">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 px-2">Filtros</h3>
-            <div className="grid grid-cols-4 gap-2 px-2">
-              <button 
-                onClick={() => setFilter(null)}
+          <div className="flex flex-wrap gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl">
+            {(['all', 'D', 'M', 'F'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
                 className={cn(
-                  "h-10 rounded-xl flex items-center justify-center transition-all border-2 font-bold text-xs",
-                  filter === null 
-                    ? "bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white" 
-                    : "bg-slate-50 dark:bg-slate-900 border-transparent hover:border-slate-200 dark:hover:border-slate-800 text-slate-400"
+                  "flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600",
+                  filter === f 
+                    ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm" 
+                    : "text-slate-400 hover:text-slate-600"
                 )}
               >
-                Tudo
+                {f === 'all' ? 'Tudo' : f}
               </button>
-              <button 
-                onClick={() => setFilter('D')}
-                className={cn(
-                  "h-10 rounded-xl flex items-center justify-center transition-all border-2 font-bold text-xs",
-                  filter === 'D' 
-                    ? "bg-emerald-500 text-white border-emerald-500" 
-                    : "bg-emerald-50 dark:bg-emerald-500/10 border-transparent hover:border-emerald-200 dark:hover:border-emerald-500/30 text-emerald-600"
-                )}
-                title="Diária Inteira"
-              >
-                D
-              </button>
-              <button 
-                onClick={() => setFilter('M')}
-                className={cn(
-                  "h-10 rounded-xl flex items-center justify-center transition-all border-2 font-bold text-xs",
-                  filter === 'M' 
-                    ? "bg-amber-500 text-white border-amber-500" 
-                    : "bg-amber-50 dark:bg-amber-500/10 border-transparent hover:border-amber-200 dark:hover:border-amber-500/30 text-amber-600"
-                )}
-                title="Meia Diária"
-              >
-                M
-              </button>
-              <button 
-                onClick={() => setFilter('F')}
-                className={cn(
-                  "h-10 rounded-xl flex items-center justify-center transition-all border-2 font-bold text-xs",
-                  filter === 'F' 
-                    ? "bg-rose-500 text-white border-rose-500" 
-                    : "bg-rose-50 dark:bg-rose-500/10 border-transparent hover:border-rose-200 dark:hover:border-rose-500/30 text-rose-600"
-                )}
-                title="Falta"
-              >
-                F
-              </button>
-            </div>
+            ))}
           </div>
 
           <div className="space-y-3">
@@ -160,7 +131,7 @@ export const CalendarView = ({
                   key={emp.id}
                   onClick={() => setSelectedEmployeeId(emp.id)}
                   className={cn(
-                    "w-full flex items-center gap-3 p-4 rounded-2xl transition-all text-left border-2",
+                    "w-full flex items-center gap-3 p-4 rounded-2xl transition-all text-left border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600",
                     selectedEmployeeId === emp.id
                       ? "bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white shadow-lg"
                       : "bg-slate-50 dark:bg-slate-900 border-transparent hover:border-slate-200 dark:hover:border-slate-800"
@@ -181,9 +152,9 @@ export const CalendarView = ({
                 </div>
               </button>
             ))}
-            {filteredEmployees.length === 0 && (
+            {employees.length === 0 && (
               <p className="text-sm font-bold text-slate-400 text-center py-8">
-                {filter ? `Nenhum registro '${filter}' este mês.` : "Nenhum colaborador cadastrado."}
+                Nenhum colaborador cadastrado.
               </p>
             )}
           </div>
@@ -218,25 +189,7 @@ export const CalendarView = ({
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-800">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Diárias Inteiras</p>
-                    <p className="text-2xl font-black italic text-emerald-500">
-                      {daysInMonth.filter(d => getAttendanceForDay(selectedEmployee.id, d).type === 'D').length}
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-800">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Meias Diárias</p>
-                    <p className="text-2xl font-black italic text-amber-500">
-                      {daysInMonth.filter(d => getAttendanceForDay(selectedEmployee.id, d).type === 'M').length}
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-800">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Faltas</p>
-                    <p className="text-2xl font-black italic text-rose-500">
-                      {daysInMonth.filter(d => getAttendanceForDay(selectedEmployee.id, d).type === 'F').length}
-                    </p>
-                  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                   <div className="p-4 rounded-2xl bg-slate-900 dark:bg-white shadow-sm border border-transparent">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Total a Receber</p>
                     <p className="text-2xl font-black italic text-white dark:text-slate-900">
@@ -252,6 +205,24 @@ export const CalendarView = ({
                       })()}
                     </p>
                   </div>
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Diárias Inteiras</p>
+                    <p className="text-2xl font-black italic text-emerald-500">
+                      {daysInMonth.filter(day => getAttendanceForDay(selectedEmployee.id, day).type === 'D').length}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Meias Diárias</p>
+                    <p className="text-2xl font-black italic text-amber-500">
+                      {daysInMonth.filter(day => getAttendanceForDay(selectedEmployee.id, day).type === 'M').length}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Faltas</p>
+                    <p className="text-2xl font-black italic text-rose-500">
+                      {daysInMonth.filter(day => getAttendanceForDay(selectedEmployee.id, day).type === 'F').length}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
@@ -264,7 +235,7 @@ export const CalendarView = ({
                         key={day.toISOString()}
                         onClick={() => toggleAttendance(selectedEmployee.id, day, type || null)}
                         className={cn(
-                          "aspect-square flex flex-col items-center justify-center gap-1 rounded-2xl transition-all border-2 relative group",
+                          "aspect-square flex flex-col items-center justify-center gap-1 rounded-2xl transition-all border-2 relative group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600",
                           isToday(day) && "ring-2 ring-slate-900 dark:ring-white ring-offset-2 dark:ring-offset-slate-950",
                           type === 'D' && "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/20",
                           type === 'M' && "bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/20",
@@ -293,7 +264,7 @@ export const CalendarView = ({
                   })}
                 </div>
 
-                <div className="mt-8 flex flex-wrap gap-4 pt-8 border-t border-slate-200 dark:border-slate-800">
+                <div className="mt-8 flex flex-wrap items-center gap-6 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-emerald-500" />
                     <span className="text-xs font-bold text-slate-500">Diária Inteira</span>
@@ -305,6 +276,10 @@ export const CalendarView = ({
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-rose-500" />
                     <span className="text-xs font-bold text-slate-500">Falta</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-slate-200 dark:bg-slate-700" />
+                    <span className="text-xs font-bold text-slate-500">Não Registrado</span>
                   </div>
                 </div>
               </Card>

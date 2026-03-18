@@ -30,7 +30,7 @@ export const Sidebar = ({ activeView, setActiveView, onOpenSettings }: SidebarPr
             key={item.id}
             onClick={() => setActiveView(item.id)}
             className={cn(
-              "flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold text-sm",
+              "flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600",
               activeView === item.id
                 ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-lg shadow-slate-200 dark:shadow-none"
                 : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900"
@@ -45,7 +45,7 @@ export const Sidebar = ({ activeView, setActiveView, onOpenSettings }: SidebarPr
       <div className="flex flex-col gap-2">
         <button
           onClick={onOpenSettings}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 font-bold text-sm transition-all"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 font-bold text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600"
         >
           <Settings size={20} />
           Configurações
