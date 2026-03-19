@@ -28,8 +28,4 @@ export interface AttendanceRecord {
 export interface UserConfig {
   ownerId: string;
   pin?: string;
-  notificationsEnabled?: boolean;
-  notificationTime?: string; // HH:mm
-  backupInterval?: 'off' | 'daily' | 'weekly';
-  lastBackupDate?: string; // ISO string
 }

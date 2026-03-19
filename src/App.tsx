@@ -12,7 +12,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { 
   Settings, X, Download, Sun, Moon, Lock, ChevronLeft, Trash2, Upload, Share2,
-  Bell, BellOff, Clock as ClockIcon, Smartphone
+  Smartphone
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
@@ -51,7 +51,6 @@ function AppContent() {
     return localStorage.getItem('pontofacil_storage_permission') === 'true';
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [lastNotificationDate, setLastNotificationDate] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('theme');
@@ -473,165 +472,6 @@ function AppContent() {
       console.error(err);
     }
     finally { setIsSubmitting(false); }
-  };
-
-  useEffect(() => {
-    if (!userConfig?.notificationsEnabled) return;
-
-    const checkNotifications = () => {
-      const now = new Date();
-      const currentTime = format(now, 'HH:mm');
-      const today = format(now, 'yyyy-MM-dd');
-
-      if (currentTime === (userConfig.notificationTime || '07:00') && lastNotificationDate !== today) {
-        if (Notification.permission === 'granted') {
-          navigator.serviceWorker.ready.then(registration => {
-            registration.showNotification('Ponto Fácil', {
-              body: 'Bom dia! Não esqueça de registrar seu ponto hoje.',
-              icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png',
-              badge: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png',
-              tag: 'daily-reminder',
-              ...({ vibrate: [200, 100, 200] } as any)
-            });
-          });
-          setLastNotificationDate(today);
-        }
-      }
-    };
-
-    const interval = setInterval(checkNotifications, 30000); // Check every 30 seconds
-    return () => clearInterval(interval);
-  }, [userConfig?.notificationsEnabled, userConfig?.notificationTime, lastNotificationDate]);
-
-  const requestNotificationPermission = async () => {
-    console.log('Solicitando permissão de notificação...');
-    if (!('Notification' in window)) {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-      console.log('Notificações não suportadas. iOS:', isIOS);
-      if (isIOS) {
-        showToast('No iOS, instale o app na tela de início para usar notificações.', 'error');
-      } else {
-        showToast('Seu navegador não suporta notificações', 'error');
-      }
-      return;
-    }
-
-    try {
-      const permission = await new Promise<NotificationPermission>((resolve) => {
-        try {
-          const result = Notification.requestPermission(resolve);
-          if (result && typeof (result as any).then === 'function') {
-            (result as any).then(resolve);
-          }
-        } catch (e) {
-          console.error('Erro ao chamar requestPermission:', e);
-          resolve('default');
-        }
-      });
-
-      console.log('Permissão de notificação:', permission);
-
-      if (permission === 'granted') {
-        setUserConfig(prev => ({ 
-          ...prev!, 
-          notificationsEnabled: true,
-          notificationTime: prev?.notificationTime || '07:00'
-        }));
-        showToast('Notificações ativadas!');
-      } else if (permission === 'denied') {
-        showToast('Permissão negada. Verifique as configurações do navegador.', 'error');
-      } else {
-        showToast('Permissão não concedida', 'error');
-      }
-    } catch (error) {
-      console.error('Erro ao solicitar permissão:', error);
-      showToast('Erro ao solicitar permissão', 'error');
-    }
-  };
-
-  const testNotification = () => {
-    if (!('serviceWorker' in navigator)) {
-      showToast('Seu navegador não suporta notificações em segundo plano', 'error');
-      return;
-    }
-
-    if (typeof Notification === 'undefined') {
-      showToast('Seu dispositivo não suporta notificações', 'error');
-      return;
-    }
-
-    if (Notification.permission === 'granted') {
-      navigator.serviceWorker.ready.then(registration => {
-        registration.showNotification('Ponto Fácil', {
-          body: 'Esta é uma notificação de teste!',
-          icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png',
-          ...({ vibrate: [200, 100, 200] } as any)
-        });
-      }).catch(err => {
-        console.error('Erro no Service Worker:', err);
-        showToast('Erro ao acessar o sistema de notificações', 'error');
-      });
-    } else {
-      showToast('Ative as notificações primeiro', 'error');
-    }
-  };
-
-  const toggleNotifications = () => {
-    if (userConfig?.notificationsEnabled) {
-      setUserConfig(prev => ({ ...prev!, notificationsEnabled: false }));
-      showToast('Notificações desativadas');
-    } else {
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        setUserConfig(prev => ({ 
-          ...prev!, 
-          notificationsEnabled: true,
-          notificationTime: prev?.notificationTime || '07:00'
-        }));
-        showToast('Notificações ativadas!');
-      } else {
-        requestNotificationPermission();
-      }
-    }
-  };
-
-  // Check for automatic backup
-  useEffect(() => {
-    if (!userConfig?.backupInterval || userConfig.backupInterval === 'off' || !user) return;
-
-    const lastBackup = userConfig.lastBackupDate ? new Date(userConfig.lastBackupDate) : null;
-    const now = new Date();
-    
-    let isDue = false;
-    if (!lastBackup) {
-      isDue = true;
-    } else {
-      const diffMs = now.getTime() - lastBackup.getTime();
-      const diffDays = diffMs / (1000 * 60 * 60 * 24);
-      if (userConfig.backupInterval === 'daily' && diffDays >= 1) isDue = true;
-      if (userConfig.backupInterval === 'weekly' && diffDays >= 7) isDue = true;
-    }
-
-    if (isDue) {
-      const intervalLabel = userConfig.backupInterval === 'daily' ? 'diário' : 'semanal';
-      showToast(`Seu backup ${intervalLabel} está pendente!`, 'success');
-      
-      // If notifications are enabled, show a system notification
-      if (Notification.permission === 'granted') {
-        navigator.serviceWorker.ready.then(registration => {
-          registration.showNotification('Ponto Fácil: Backup Pendente', {
-            body: `Está na hora de fazer o seu backup ${intervalLabel}!`,
-            icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png',
-            tag: 'backup-reminder',
-            ...({ vibrate: [200, 100, 200] } as any)
-          });
-        });
-      }
-    }
-  }, [userConfig?.backupInterval, userConfig?.lastBackupDate, user?.uid]);
-
-  const updateNotificationTime = (time: string) => {
-    setUserConfig(prev => ({ ...prev!, notificationTime: time }));
-    showToast(`Lembrete ajustado para ${time}`);
   };
 
   const deleteEmployee = async (id: string) => {
@@ -1101,12 +941,12 @@ function AppContent() {
       </div>
       
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden pb-16 lg:pb-0">
-        <header className="h-16 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-8 shrink-0 z-30">
+        <header className="h-20 pt-4 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-8 shrink-0 z-30">
           <div className="flex items-center gap-3">
             {activeView !== 'dashboard' && (
               <button 
                 onClick={() => setActiveView('dashboard')} 
-                className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600"
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600"
               >
                 <ChevronLeft size={24} />
               </button>
@@ -1226,13 +1066,13 @@ function AppContent() {
       {isSettingsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <Card className="w-full max-w-md p-0 overflow-hidden rounded-3xl border-none">
-            <div className="p-6 space-y-6">
+            <div className="p-6 pt-12 space-y-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Button 
                     variant="ghost" 
                     onClick={() => setIsSettingsOpen(false)} 
-                    className="rounded-full w-10 h-10 p-0 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    className="rounded-full w-10 h-10 p-0 hover:bg-slate-100 dark:hover:bg-slate-800"
                   >
                     <ChevronLeft size={24} />
                   </Button>
@@ -1273,56 +1113,6 @@ function AppContent() {
                       darkMode ? "translate-x-6" : "translate-x-1"
                     )} />
                   </button>
-                </div>
-
-                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl space-y-4">
-                  <div 
-                    className="flex items-center justify-between cursor-pointer select-none"
-                    onClick={toggleNotifications}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm">
-                        {userConfig?.notificationsEnabled ? (
-                          <Bell size={16} className="text-indigo-500" />
-                        ) : (
-                          <BellOff size={16} className="text-slate-400" />
-                        )}
-                      </div>
-                      <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Lembrete Diário</span>
-                    </div>
-                    <button 
-                      type="button"
-                      className={cn(
-                        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400", 
-                        userConfig?.notificationsEnabled ? "bg-indigo-600" : "bg-slate-300"
-                      )}
-                    >
-                      <span className={cn(
-                        "inline-block h-4 w-4 transform rounded-full bg-white transition-transform", 
-                        userConfig?.notificationsEnabled ? "translate-x-6" : "translate-x-1"
-                      )} />
-                    </button>
-                  </div>
-
-                  <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-                        <ClockIcon size={14} />
-                        Horário do Lembrete
-                      </div>
-                      <input 
-                        type="time" 
-                        value={userConfig?.notificationTime || '07:00'} 
-                        onChange={e => updateNotificationTime(e.target.value)}
-                        className="bg-white dark:bg-slate-800 border-none rounded-lg text-xs font-black p-1 px-2 focus:ring-2 focus:ring-indigo-500 focus-visible:outline-none"
-                      />
-                    </div>
-                    {userConfig?.notificationsEnabled && (
-                      <Button variant="ghost" onClick={testNotification} className="w-full h-9 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white dark:bg-slate-800 shadow-sm">
-                        Testar Notificação
-                      </Button>
-                    )}
-                  </div>
                 </div>
 
                 <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl space-y-4">
@@ -1391,33 +1181,6 @@ function AppContent() {
                     </Button>
                   </div>
 
-                  <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-                        <ClockIcon size={14} />
-                        Backup Automático
-                      </div>
-                      <select 
-                        value={userConfig?.backupInterval || 'off'} 
-                        onChange={e => {
-                          const val = e.target.value as any;
-                          setUserConfig(prev => ({ ...prev!, backupInterval: val }));
-                          showToast(`Backup automático: ${val === 'off' ? 'Desativado' : val === 'daily' ? 'Diário' : 'Semanal'}`);
-                        }}
-                        className="bg-white dark:bg-slate-800 border-none rounded-lg text-xs font-black p-1 px-2 focus:ring-2 focus:ring-indigo-500 focus-visible:outline-none"
-                      >
-                        <option value="off">Desativado</option>
-                        <option value="daily">Diário</option>
-                        <option value="weekly">Semanal</option>
-                      </select>
-                    </div>
-                    {userConfig?.lastBackupDate && (
-                      <p className="text-[10px] text-slate-400 text-center">
-                        Último backup: {format(new Date(userConfig.lastBackupDate), "dd/MM/yyyy 'às' HH:mm")}
-                      </p>
-                    )}
-                  </div>
-                  
                   <Button variant="ghost" onClick={importData} className="w-full h-11 rounded-xl font-bold gap-2 bg-white dark:bg-slate-800 shadow-sm">
                     <Upload size={16} />
                     Restaurar Backup
