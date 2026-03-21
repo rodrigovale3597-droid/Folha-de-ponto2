@@ -1,7 +1,8 @@
 import React from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { X, Clock, MapPin, CheckCircle2, XCircle, History } from 'lucide-react';
+import { X, Clock, MapPin, CheckCircle2, XCircle, History, ChevronDown, ChevronUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Button, Card, cn } from './UI';
 import { AttendanceRecord, Employee } from '../types';
 
@@ -14,6 +15,8 @@ interface AttendanceHistoryProps {
 }
 
 export const AttendanceHistory = ({ isOpen, onClose, employee, attendance, month }: AttendanceHistoryProps) => {
+  const [expandedId, setExpandedId] = React.useState<string | null>(null);
+
   if (!isOpen) return null;
 
   const monthStr = format(month, 'yyyy-MM');
@@ -27,6 +30,10 @@ export const AttendanceHistory = ({ isOpen, onClose, employee, attendance, month
       case 'M': return { label: 'Meia Diária', icon: Clock, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10' };
       case 'F': return { label: 'Falta', icon: XCircle, color: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-500/10' };
     }
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedId(expandedId === id ? null : id);
   };
 
   return (
@@ -73,6 +80,7 @@ export const AttendanceHistory = ({ isOpen, onClose, employee, attendance, month
               const status = getStatusInfo(record.type);
               const dateObj = parseISO(record.date);
               const timestampObj = record.timestamp ? parseISO(record.timestamp) : null;
+              const isExpanded = expandedId === record.id;
 
               return (
                 <div key={record.id} className="group relative flex gap-4">
@@ -87,53 +95,82 @@ export const AttendanceHistory = ({ isOpen, onClose, employee, attendance, month
                   </div>
 
                   <div className="flex-1 pb-8">
-                    <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-4 border border-transparent hover:border-slate-200 dark:hover:border-slate-800 transition-all">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                        <h4 className="font-black text-lg tracking-tight italic">
-                          {format(dateObj, "EEEE, dd 'de' MMMM", { locale: ptBR })}
-                        </h4>
-                        <span className={cn(
-                          "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                          status.bg, status.color
-                        )}>
-                          {status.label}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Marcação Realizada em:</p>
-                          <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                            <Clock size={14} className="text-slate-400" />
-                            {timestampObj ? (
-                              format(timestampObj, "HH:mm:ss 'em' dd/MM/yyyy", { locale: ptBR })
-                            ) : (
-                              'Horário não registrado'
-                            )}
-                          </div>
+                    <button 
+                      onClick={() => toggleExpand(record.id)}
+                      className={cn(
+                        "w-full text-left bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-4 border border-transparent hover:border-slate-200 dark:hover:border-slate-800 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400",
+                        isExpanded && "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-col">
+                          <h4 className="font-black text-lg tracking-tight italic">
+                            {format(dateObj, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                          </h4>
+                          <span className={cn(
+                            "text-[10px] font-black uppercase tracking-widest",
+                            status.color
+                          )}>
+                            {status.label}
+                          </span>
                         </div>
-
-                        {record.location && (
-                          <div className="space-y-1">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Local / Obra:</p>
-                            <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                              <MapPin size={14} className="text-slate-400" />
-                              {record.location}
+                        <div className="flex items-center gap-3">
+                          {record.location && !isExpanded && (
+                            <div className="hidden sm:flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                              <MapPin size={12} />
+                              <span className="truncate max-w-[100px]">{record.location}</span>
                             </div>
-                          </div>
-                        )}
-
-                        {record.customRate !== undefined && (
-                          <div className="space-y-1">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Valor Diferenciado:</p>
-                            <div className="flex items-center gap-2 text-sm font-bold text-indigo-600 dark:text-indigo-400">
-                              <CheckCircle2 size={14} />
-                              R$ {record.customRate.toFixed(2)}
-                            </div>
-                          </div>
-                        )}
+                          )}
+                          {isExpanded ? <ChevronUp size={20} className="text-slate-400" /> : <ChevronDown size={20} className="text-slate-400" />}
+                        </div>
                       </div>
-                    </div>
+
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3, ease: "easeOut" }}
+                            className="overflow-hidden"
+                          >
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-6 mt-4 border-t border-slate-100 dark:border-slate-800">
+                              <div className="space-y-1">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Marcação Realizada em:</p>
+                                <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                                  <Clock size={14} className="text-slate-400" />
+                                  {timestampObj ? (
+                                    format(timestampObj, "HH:mm:ss 'em' dd/MM/yyyy", { locale: ptBR })
+                                  ) : (
+                                    'Horário não registrado'
+                                  )}
+                                </div>
+                              </div>
+
+                              {record.location && (
+                                <div className="space-y-1">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Local / Obra:</p>
+                                  <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                                    <MapPin size={14} className="text-slate-400" />
+                                    {record.location}
+                                  </div>
+                                </div>
+                              )}
+
+                              {record.customRate !== undefined && (
+                                <div className="space-y-1">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Valor Diferenciado:</p>
+                                  <div className="flex items-center gap-2 text-sm font-bold text-indigo-600 dark:text-indigo-400">
+                                    <CheckCircle2 size={14} />
+                                    R$ {record.customRate.toFixed(2)}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </button>
                   </div>
                 </div>
               );

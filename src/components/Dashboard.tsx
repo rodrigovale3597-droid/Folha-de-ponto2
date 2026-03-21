@@ -17,13 +17,14 @@ interface DashboardProps {
   setCurrentMonth: (date: Date) => void;
   getSummary: (id: string, monthYear: string) => any;
   setActiveView: (view: 'dashboard' | 'team' | 'calendar') => void;
+  setSelectedEmployeeId: (id: string | null) => void;
   onInstallPWA?: () => void;
   isInstallable?: boolean;
 }
 
 export const Dashboard = ({ 
   employees, attendance, currentMonth, setCurrentMonth, getSummary, setActiveView,
-  onInstallPWA, isInstallable
+  setSelectedEmployeeId, onInstallPWA, isInstallable
 }: DashboardProps) => {
   const [isPickerOpen, setIsPickerOpen] = React.useState(false);
   const [isIOS, setIsIOS] = React.useState(false);
@@ -228,16 +229,27 @@ export const Dashboard = ({
               const total = summary.totalValue;
               
               return (
-                <Card key={emp.id} className="p-4 flex items-center justify-between hover:shadow-md transition-shadow">
+                <Card 
+                  key={emp.id} 
+                  onClick={() => { setSelectedEmployeeId(emp.id); setActiveView('calendar'); }}
+                  className="p-4 flex items-center justify-between hover:shadow-md transition-shadow cursor-pointer"
+                >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center font-black italic text-sm">
                       {emp.name.charAt(0)}
                     </div>
                     <div>
                       <p className="font-black tracking-tight">{emp.name}</p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        {emp.role || 'Colaborador'} {emp.project && `• ${emp.project}`}
-                      </p>
+                      <div className="flex flex-col">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          {emp.role || 'Colaborador'} {emp.project && `• ${emp.project}`}
+                        </p>
+                        {emp.pixKey && (
+                          <p className="text-[9px] font-bold text-indigo-500/70 truncate max-w-[150px]">
+                            PIX: {emp.pixKey}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
@@ -279,7 +291,13 @@ export const Dashboard = ({
                 }[record.type];
 
                 return (
-                  <div key={record.id} className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-800">
+                  <div 
+                    key={record.id} 
+                    onClick={() => { setSelectedEmployeeId(emp.id); setActiveView('calendar'); }}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-all"
+                    )}
+                  >
                     <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center font-black italic text-sm", typeInfo.bg, typeInfo.color)}>
                       {record.type}
                     </div>

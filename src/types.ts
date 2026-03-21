@@ -9,6 +9,8 @@ export interface Employee {
   bankAccount?: string;
   paymentNote?: string;
   project?: string;
+  team?: string;
+  contractType?: string;
   ownerId: string;
   createdAt: string;
 }

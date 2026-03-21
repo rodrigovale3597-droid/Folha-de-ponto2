@@ -1,34 +1,34 @@
 import React from 'react';
-import { LayoutDashboard, Users, Calendar, Settings, LogOut } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { LayoutDashboard, Users, Calendar, Settings } from 'lucide-react';
 import { cn } from './UI';
 
 interface SidebarProps {
   activeView: 'dashboard' | 'team' | 'calendar';
-  setActiveView: (view: 'dashboard' | 'team' | 'calendar') => void;
   onOpenSettings: () => void;
 }
 
-export const Sidebar = ({ activeView, setActiveView, onOpenSettings }: SidebarProps) => {
+export const Sidebar = ({ activeView, onOpenSettings }: SidebarProps) => {
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'team', label: 'Equipe', icon: Users },
-    { id: 'calendar', label: 'Calendário', icon: Calendar },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/' },
+    { id: 'team', label: 'Equipe', icon: Users, path: '/team' },
+    { id: 'calendar', label: 'Calendário', icon: Calendar, path: '/calendar' },
   ] as const;
 
   return (
     <aside className="w-64 h-screen bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 flex flex-col p-6 gap-8">
-      <div className="flex items-center gap-2 px-2">
+      <Link to="/" className="flex items-center gap-2 px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600 rounded-lg">
         <div className="w-8 h-8 bg-slate-900 dark:bg-white rounded-lg flex items-center justify-center">
           <span className="text-white dark:text-slate-900 font-black italic">P</span>
         </div>
         <h1 className="text-xl font-black tracking-tighter italic">PontoFácil</h1>
-      </div>
+      </Link>
 
       <nav className="flex-1 flex flex-col gap-2">
         {menuItems.map((item) => (
-          <button
+          <Link
             key={item.id}
-            onClick={() => setActiveView(item.id)}
+            to={item.path}
             className={cn(
               "flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600",
               activeView === item.id
@@ -38,7 +38,7 @@ export const Sidebar = ({ activeView, setActiveView, onOpenSettings }: SidebarPr
           >
             <item.icon size={20} />
             {item.label}
-          </button>
+          </Link>
         ))}
       </nav>
 

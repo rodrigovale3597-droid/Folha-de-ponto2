@@ -5,6 +5,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
+  Routes, Route, useNavigate, useLocation 
+} from 'react-router-dom';
+import { 
   format, startOfMonth, endOfMonth, eachDayOfInterval 
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -51,6 +54,8 @@ function AppContent() {
     return localStorage.getItem('pontofacil_storage_permission') === 'true';
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('theme');
@@ -66,7 +71,21 @@ function AppContent() {
   });
   const [newPin, setNewPin] = useState('');
   const [isSettingPin, setIsSettingPin] = useState(false);
-  const [activeView, setActiveView] = useState<'dashboard' | 'team' | 'calendar'>('dashboard');
+  
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  const activeView = useMemo(() => {
+    const path = location.pathname.substring(1);
+    if (path === 'team') return 'team';
+    if (path === 'calendar') return 'calendar';
+    return 'dashboard';
+  }, [location.pathname]);
+
+  const setActiveView = (view: 'dashboard' | 'team' | 'calendar') => {
+    navigate(view === 'dashboard' ? '/' : `/${view}`);
+  };
+
   const [toast, setToast] = useState<{ id: number; message: string; type: 'success' | 'error' } | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isLocked, setIsLocked] = useState(() => {
@@ -82,6 +101,18 @@ function AppContent() {
     return false;
   });
   const [pinInput, setPinInput] = useState('');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   
   // Reset month to current when entering calendar view (PDF functionality)
   useEffect(() => {
@@ -148,7 +179,7 @@ function AppContent() {
   // Form states
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [empForm, setEmpForm] = useState({
-    name: '', role: '', dailyRate: '', pix: '', bankName: '', bankAgency: '', bankAccount: '', project: '', paymentNote: ''
+    name: '', role: '', dailyRate: '', pix: '', bankName: '', bankAgency: '', bankAccount: '', project: '', team: '', contractType: '', paymentNote: ''
   });
 
   useEffect(() => {
@@ -181,6 +212,7 @@ function AppContent() {
   const showToast = (message: string, type: 'success' | 'error' = 'success') => setToast({ id: Date.now(), message, type });
 
   const exportData = async (share = false) => {
+    setIsExporting(true);
     const data = {
       employees,
       attendance,
@@ -210,12 +242,14 @@ function AppContent() {
             text: `Backup realizado em ${format(new Date(), 'dd/MM/yyyy HH:mm')}`
           });
           showToast('Backup compartilhado!');
+          setIsExporting(false);
           return;
         }
       } catch (err) {
         if ((err as Error).name !== 'AbortError') {
           console.error('Erro ao compartilhar:', err);
         } else {
+          setIsExporting(false);
           return; // User cancelled
         }
       }
@@ -242,6 +276,8 @@ function AppContent() {
     } catch (err) {
       console.error('Erro ao exportar:', err);
       showToast('Erro ao exportar dados', 'error');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -396,6 +432,8 @@ function AppContent() {
 
     setIsSubmitting(true);
     try {
+      // Simulando delay para feedback visual
+      await new Promise(resolve => setTimeout(resolve, 800));
       const rate = parseFloat(empForm.dailyRate.replace(',', '.'));
       const newEmployee: Employee = {
         id: Date.now().toString(),
@@ -408,12 +446,14 @@ function AppContent() {
         bankAccount: empForm.bankAccount.trim(),
         paymentNote: empForm.paymentNote.trim(),
         project: empForm.project.trim(),
+        team: empForm.team.trim(),
+        contractType: empForm.contractType.trim(),
         ownerId: user.uid,
         createdAt: new Date().toISOString()
       };
       setEmployees(prev => [...prev, newEmployee]);
       showToast('Funcionário cadastrado!');
-      setEmpForm({ name: '', role: '', dailyRate: '', pix: '', bankName: '', bankAgency: '', bankAccount: '', project: '', paymentNote: '' });
+      setEmpForm({ name: '', role: '', dailyRate: '', pix: '', bankName: '', bankAgency: '', bankAccount: '', project: '', team: '', contractType: '', paymentNote: '' });
       setFormErrors({});
       setIsAddEmployeeOpen(false);
     } catch (err) { 
@@ -430,7 +470,7 @@ function AppContent() {
     setEmpForm({
       name: emp.name, role: emp.role || '', dailyRate: emp.dailyRate?.toString() || '',
       pix: emp.pixKey || '', bankName: emp.bankName || '', bankAgency: emp.bankAgency || '', bankAccount: emp.bankAccount || '',
-      project: emp.project || '', paymentNote: emp.paymentNote || ''
+      project: emp.project || '', team: emp.team || '', contractType: emp.contractType || '', paymentNote: emp.paymentNote || ''
     });
     setIsEditEmployeeOpen(true);
   };
@@ -446,6 +486,8 @@ function AppContent() {
 
     setIsSubmitting(true);
     try {
+      // Simulando delay para feedback visual
+      await new Promise(resolve => setTimeout(resolve, 800));
       const rate = parseFloat(empForm.dailyRate.replace(',', '.'));
       setEmployees(prev => prev.map(emp => {
         if (emp.id === selectedEmployeeId) {
@@ -460,6 +502,8 @@ function AppContent() {
             bankAccount: empForm.bankAccount.trim(),
             paymentNote: empForm.paymentNote.trim(),
             project: empForm.project.trim(),
+            team: empForm.team.trim(),
+            contractType: empForm.contractType.trim(),
           };
         }
         return emp;
@@ -500,7 +544,10 @@ function AppContent() {
       showToast('PIN deve ter entre 4 e 6 dígitos', 'error');
       return;
     }
+    setIsSavingConfig(true);
     try { 
+      // Simulate a small delay for better visual feedback
+      await new Promise(resolve => setTimeout(resolve, 600));
       setUserConfig(prev => ({ ...prev!, pin: newPin }));
       setIsSettingPin(false); 
       setNewPin(''); 
@@ -508,6 +555,8 @@ function AppContent() {
     } catch (err) { 
       console.error(err);
       showToast('Erro ao salvar PIN', 'error');
+    } finally {
+      setIsSavingConfig(false);
     }
   };
 
@@ -599,6 +648,13 @@ function AppContent() {
     csvContent += "\n";
     csvContent += `RESUMO MENSAL - ${emp.name.toUpperCase()}\n`;
     csvContent += `Mes de Referencia;${format(currentMonth, 'MMMM yyyy', { locale: ptBR }).toUpperCase()}\n`;
+    
+    if (emp.pixKey) csvContent += `CHAVE PIX;${emp.pixKey}\n`;
+    if (emp.bankName) csvContent += `BANCO;${emp.bankName}\n`;
+    if (emp.bankAgency) csvContent += `AGENCIA;${emp.bankAgency}\n`;
+    if (emp.bankAccount) csvContent += `CONTA;${emp.bankAccount}\n`;
+    if (emp.paymentNote) csvContent += `OBSERVACAO;${emp.paymentNote}\n`;
+
     csvContent += `Diarias Inteiras;${summary.diarias}\n`;
     csvContent += `Meias Diarias;${summary.meias}\n`;
     csvContent += `Faltas;${summary.faltas}\n`;
@@ -622,11 +678,11 @@ function AppContent() {
     }
   };
 
-  const generatePDF = async () => {
+  const generatePDF = async (share = false) => {
     const emp = employees.find(e => e.id === selectedEmployeeId);
     if (!emp) return;
 
-    if (!hasStoragePermission) {
+    if (!hasStoragePermission && !share) {
       setIsStoragePermissionOpen(true);
       return;
     }
@@ -686,12 +742,30 @@ function AppContent() {
     docPdf.text(`Nome: ${t(emp.name)}`, 20, 65);
     docPdf.text(`Cargo: ${t(emp.role) || 'Nao informado'}`, 20, 72);
     docPdf.text(`Obra/Projeto: ${t(emp.project) || 'Nao informado'}`, 20, 79);
+    
+    // Bank and PIX Info
+    let bankInfoY = 86;
+    if (emp.pixKey || emp.bankName) {
+      let bankStr = '';
+      if (emp.pixKey) bankStr += `PIX: ${t(emp.pixKey)}  `;
+      if (emp.bankName) bankStr += `BANCO: ${t(emp.bankName)}  `;
+      if (emp.bankAgency) bankStr += `AG: ${t(emp.bankAgency)}  `;
+      if (emp.bankAccount) bankStr += `CC: ${t(emp.bankAccount)}`;
+      
+      docPdf.setFontSize(9);
+      docPdf.setFont('helvetica', 'bold');
+      docPdf.text(bankStr.trim(), 20, bankInfoY);
+      docPdf.setFont('helvetica', 'normal');
+      bankInfoY += 6;
+    }
+
     if (emp.paymentNote) {
       docPdf.setFontSize(8);
-      docPdf.text(`Obs Pagamento: ${t(emp.paymentNote)}`, 20, 84);
-      docPdf.setFontSize(10);
+      docPdf.text(`OBS: ${t(emp.paymentNote)}`, 20, bankInfoY);
+      bankInfoY += 6;
     }
     
+    docPdf.setFontSize(10);
     docPdf.text(`Mes de Referencia: ${t(format(currentMonth, 'MMMM yyyy', { locale: ptBR }).toUpperCase())}`, 120, 65);
     docPdf.text(`Valor da Diaria: R$ ${rate.toFixed(2)}`, 120, 72);
     docPdf.setFont('helvetica', 'bold');
@@ -699,7 +773,7 @@ function AppContent() {
 
     // Summary Table
     autoTable(docPdf, {
-      startY: 90,
+      startY: Math.max(95, bankInfoY + 5),
       head: [['Data', 'Dia', 'Tipo de Registro', 'Localizacao', 'Valor']],
       body: daysInMonth.map(d => {
         const record = attendance.find(a => a.employeeId === emp.id && a.date === format(d, 'yyyy-MM-dd'));
@@ -757,16 +831,12 @@ function AppContent() {
 
     const fileName = `PontoFacil_${emp.name.replace(/\s+/g, '_')}_${monthStr}.pdf`;
 
-    // Mobile-first approach: Try Web Share API
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    
-    if (isMobile && navigator.share) {
-      showToast('Preparando para compartilhar...');
-      try {
+    try {
+      if (share && navigator.share) {
+        showToast('Preparando para compartilhar...');
         const pdfBlob = docPdf.output('blob');
         const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
         
-        // Check if sharing files is supported
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
             files: [file],
@@ -774,36 +844,23 @@ function AppContent() {
             text: `Relatório de Ponto - ${t(emp.name)} - ${monthStr}`,
           });
           showToast('Relatório compartilhado!');
-          return;
+        } else {
+          docPdf.save(fileName);
+          showToast('Compartilhamento não suportado, baixando...');
         }
-      } catch (error) {
-        // If user cancelled, don't show error
-        if ((error as any).name === 'AbortError') return;
-        console.error('Erro ao compartilhar:', error);
+      } else {
+        // Standard jsPDF save method is robust for browser downloads
+        docPdf.save(fileName);
+        showToast('Relatório baixado com sucesso');
       }
-    }
-
-    // Fallback for desktop or when share fails
-    try {
-      // Robust download for mobile: hidden link
-      const pdfBlob = docPdf.output('blob');
-      const pdfUrl = URL.createObjectURL(pdfBlob);
-      const link = document.createElement('a');
-      link.href = pdfUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // Cleanup URL
-      setTimeout(() => URL.revokeObjectURL(pdfUrl), 100);
-      
-      showToast('Relatório salvo em Downloads');
     } catch (error) {
-      console.error('Erro ao salvar PDF:', error);
+      if ((error as any).name === 'AbortError') return;
+      console.error('Erro ao gerar PDF:', error);
       showToast('Erro ao gerar relatório', 'error');
     }
   };
+
+  const sharePDF = () => generatePDF(true);
 
   if (loading) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
@@ -935,7 +992,6 @@ function AppContent() {
       <div className="hidden lg:block">
         <Sidebar 
           activeView={activeView} 
-          setActiveView={setActiveView} 
           onOpenSettings={() => setIsSettingsOpen(true)} 
         />
       </div>
@@ -951,9 +1007,14 @@ function AppContent() {
                 <ChevronLeft size={24} />
               </button>
             )}
-            <h2 className="text-xl font-black tracking-tighter italic">
+            <h2 className="text-xl font-black tracking-tighter italic flex items-center gap-2">
               {activeView === 'dashboard' ? 'PontoFácil' : 
                activeView === 'team' ? 'Equipe' : 'Calendário'}
+              {!isOnline && (
+                <span className="px-2 py-0.5 rounded-full bg-rose-500 text-[10px] text-white font-black uppercase tracking-widest animate-pulse">
+                  Offline
+                </span>
+              )}
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -965,65 +1026,69 @@ function AppContent() {
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-8">
           <div className="max-w-6xl mx-auto">
-            {activeView === 'dashboard' && (
-              <Dashboard 
-                employees={employees} 
-                attendance={attendance} 
-                currentMonth={currentMonth} 
-                setCurrentMonth={setCurrentMonth} 
-                getSummary={getSummary} 
-                setActiveView={setActiveView} 
-                onInstallPWA={installPWA}
-                isInstallable={!!deferredPrompt}
-              />
-            )}
-            {activeView === 'team' && (
-              <Team 
-                employees={employees} 
-                attendance={attendance}
-                setIsAddEmployeeOpen={setIsAddEmployeeOpen} 
-                setSelectedEmployeeId={setSelectedEmployeeId} 
-                openEditModal={openEditModal} 
-                deleteEmployee={deleteEmployee} 
-                setActiveView={setActiveView} 
-              />
-            )}
-            {activeView === 'calendar' && (
-              <CalendarView 
-                employees={employees} 
-                attendance={attendance}
-                selectedEmployeeId={selectedEmployeeId} 
-                setSelectedEmployeeId={setSelectedEmployeeId} 
-                currentMonth={currentMonth} 
-                setCurrentMonth={setCurrentMonth} 
-                daysInMonth={daysInMonth} 
-                getAttendanceForDay={(id, d) => {
-                  const record = attendance.find(a => a.employeeId === id && a.date === format(d, 'yyyy-MM-dd'));
-                  return { type: record?.type, location: record?.location, customRate: record?.customRate };
-                }} 
-                toggleAttendance={(id, d, t) => {
-                  const record = attendance.find(a => a.employeeId === id && a.date === format(d, 'yyyy-MM-dd'));
-                  setAttendanceModal({ 
-                    isOpen: true, 
-                    date: d, 
-                    employeeId: id, 
-                    currentType: t,
-                    currentLocation: record?.location,
-                    currentCustomRate: record?.customRate
-                  });
-                }} 
-                generatePDF={generatePDF} 
-                generateCSV={generateCSV}
-              />
-            )}
+            <Routes>
+              <Route path="/" element={
+                <Dashboard 
+                  employees={employees} 
+                  attendance={attendance} 
+                  currentMonth={currentMonth} 
+                  setCurrentMonth={setCurrentMonth} 
+                  getSummary={getSummary} 
+                  setActiveView={setActiveView} 
+                  setSelectedEmployeeId={setSelectedEmployeeId}
+                  onInstallPWA={installPWA}
+                  isInstallable={!!deferredPrompt}
+                />
+              } />
+              <Route path="/team" element={
+                <Team 
+                  employees={employees} 
+                  attendance={attendance}
+                  setIsAddEmployeeOpen={setIsAddEmployeeOpen} 
+                  setSelectedEmployeeId={setSelectedEmployeeId} 
+                  openEditModal={openEditModal} 
+                  deleteEmployee={deleteEmployee} 
+                  setActiveView={setActiveView} 
+                />
+              } />
+              <Route path="/calendar" element={
+                <CalendarView 
+                  employees={employees} 
+                  attendance={attendance}
+                  selectedEmployeeId={selectedEmployeeId} 
+                  setSelectedEmployeeId={setSelectedEmployeeId} 
+                  currentMonth={currentMonth} 
+                  setCurrentMonth={setCurrentMonth} 
+                  daysInMonth={daysInMonth} 
+                  getAttendanceForDay={(id, d) => {
+                    const record = attendance.find(a => a.employeeId === id && a.date === format(d, 'yyyy-MM-dd'));
+                    return { type: record?.type, location: record?.location, customRate: record?.customRate };
+                  }} 
+                  toggleAttendance={(id, d, t) => {
+                    const record = attendance.find(a => a.employeeId === id && a.date === format(d, 'yyyy-MM-dd'));
+                    setAttendanceModal({ 
+                      isOpen: true, 
+                      date: d, 
+                      employeeId: id, 
+                      currentType: t,
+                      currentLocation: record?.location,
+                      currentCustomRate: record?.customRate
+                    });
+                  }} 
+                  generatePDF={() => generatePDF(false)} 
+                  generateCSV={generateCSV}
+                  sharePDF={sharePDF}
+                />
+              } />
+            </Routes>
           </div>
         </main>
       </div>
 
       <BottomNav 
         activeView={activeView} 
-        setActiveView={setActiveView} 
         onOpenAddEmployee={() => setIsAddEmployeeOpen(true)} 
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       {isStoragePermissionOpen && (
@@ -1152,7 +1217,13 @@ function AppContent() {
                           maxLength={6} 
                           placeholder="••••"
                         />
-                        <Button onClick={savePin} className="h-11 px-6 rounded-xl">Salvar</Button>
+                        <Button 
+                          onClick={savePin} 
+                          className="h-11 px-6 rounded-xl"
+                          isLoading={isSavingConfig}
+                        >
+                          Salvar
+                        </Button>
                       </div>
                     ) : (
                       <Button variant="secondary" onClick={() => setIsSettingPin(true)} className="w-full h-11 rounded-xl font-bold">
@@ -1171,11 +1242,21 @@ function AppContent() {
                   </div>
                   
                   <div className="grid grid-cols-2 gap-2">
-                    <Button variant="secondary" onClick={() => exportData(false)} className="h-11 rounded-xl font-bold gap-2">
+                    <Button 
+                      variant="secondary" 
+                      onClick={() => exportData(false)} 
+                      className="h-11 rounded-xl font-bold gap-2"
+                      isLoading={isExporting}
+                    >
                       <Download size={16} />
                       Baixar
                     </Button>
-                    <Button variant="secondary" onClick={() => exportData(true)} className="h-11 rounded-xl font-bold gap-2">
+                    <Button 
+                      variant="secondary" 
+                      onClick={() => exportData(true)} 
+                      className="h-11 rounded-xl font-bold gap-2"
+                      isLoading={isExporting}
+                    >
                       <Share2 size={16} />
                       Enviar
                     </Button>
@@ -1267,6 +1348,16 @@ function AppContent() {
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 px-1 uppercase tracking-widest">Obra ou Projeto</label>
                     <input type="text" value={empForm.project} onChange={e => setEmpForm({...empForm, project: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600" placeholder="Ex: Edifício Central" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 px-1 uppercase tracking-widest">Equipe Interna</label>
+                      <input type="text" value={empForm.team} onChange={e => setEmpForm({...empForm, team: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600" placeholder="Ex: Equipe A" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 px-1 uppercase tracking-widest">Regime / Contrato</label>
+                      <input type="text" value={empForm.contractType} onChange={e => setEmpForm({...empForm, contractType: e.target.value})} className="pro-input h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-slate-600" placeholder="Ex: CLT, MEI" />
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 px-1 uppercase tracking-widest">Cargo / Função</label>
@@ -1363,8 +1454,12 @@ function AppContent() {
                 </div>
 
                 <div className="flex gap-3 pt-4 sticky bottom-0 bg-white dark:bg-slate-950">
-                  <Button type="submit" className="flex-1 h-12 rounded-xl font-black italic tracking-tight text-lg" disabled={isSubmitting}>
-                    {isSubmitting ? 'Processando...' : 'Salvar Alterações'}
+                  <Button 
+                    type="submit" 
+                    className="flex-1 h-12 rounded-xl font-black italic tracking-tight text-lg" 
+                    isLoading={isSubmitting}
+                  >
+                    {isAddEmployeeOpen ? 'Cadastrar Colaborador' : 'Salvar Alterações'}
                   </Button>
                 </div>
               </form>

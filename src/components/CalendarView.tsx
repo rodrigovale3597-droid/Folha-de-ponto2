@@ -3,7 +3,7 @@ import { format, addMonths, subMonths, isSameMonth, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   ChevronLeft, ChevronRight, Download, 
-  CheckCircle2, Clock, XCircle, User, History 
+  CheckCircle2, Clock, XCircle, User, History, Share2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button, Card, cn } from './UI';
@@ -23,12 +23,13 @@ interface CalendarViewProps {
   toggleAttendance: (id: string, d: Date, t: 'D' | 'M' | 'F' | null) => void;
   generatePDF: () => void;
   generateCSV: () => void;
+  sharePDF: () => void;
 }
 
 export const CalendarView = ({ 
   employees, attendance, selectedEmployeeId, setSelectedEmployeeId, 
   currentMonth, setCurrentMonth, daysInMonth, 
-  getAttendanceForDay, toggleAttendance, generatePDF, generateCSV 
+  getAttendanceForDay, toggleAttendance, generatePDF, generateCSV, sharePDF 
 }: CalendarViewProps) => {
   const [isPickerOpen, setIsPickerOpen] = React.useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = React.useState(false);
@@ -81,11 +82,17 @@ export const CalendarView = ({
                 <History size={20} />
                 <span className="hidden md:inline text-xs font-black italic tracking-tight">Histórico</span>
               </Button>
-              <Button onClick={generatePDF} variant="secondary" className="rounded-2xl h-12 px-4 gap-2">
+              <Button onClick={generatePDF} variant="secondary" className="rounded-2xl h-12 px-4 gap-2" title="Baixar PDF">
                 <Download size={20} />
                 <span className="hidden md:inline">PDF</span>
               </Button>
-              <Button onClick={generateCSV} variant="secondary" className="rounded-2xl h-12 px-4 gap-2">
+              {navigator.share && (
+                <Button onClick={sharePDF} variant="secondary" className="rounded-2xl h-12 px-4 gap-2" title="Compartilhar PDF">
+                  <Share2 size={20} />
+                  <span className="hidden md:inline">Enviar</span>
+                </Button>
+              )}
+              <Button onClick={generateCSV} variant="secondary" className="rounded-2xl h-12 px-4 gap-2" title="Baixar CSV">
                 <Download size={20} />
                 <span className="hidden md:inline">CSV</span>
               </Button>
@@ -125,7 +132,7 @@ export const CalendarView = ({
 
           <div className="space-y-3">
             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 px-2">Colaboradores ({filteredEmployees.length})</h3>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
               {filteredEmployees.map(emp => (
                 <button
                   key={emp.id}
@@ -178,7 +185,14 @@ export const CalendarView = ({
                   </div>
                   <div className="flex-1">
                     <h2 className="text-2xl font-black tracking-tighter italic">{selectedEmployee.name}</h2>
-                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Registros de {format(currentMonth, 'MMMM', { locale: ptBR })}</p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Registros de {format(currentMonth, 'MMMM', { locale: ptBR })}</p>
+                      {selectedEmployee.pixKey && (
+                        <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
+                          PIX: {selectedEmployee.pixKey}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <Button 
                     onClick={() => toggleAttendance(selectedEmployee.id, new Date(), getAttendanceForDay(selectedEmployee.id, new Date()).type || null)}
